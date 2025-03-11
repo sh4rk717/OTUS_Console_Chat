@@ -7,104 +7,118 @@ internal static class Program
         var userName = "";
         List<string> tasks = [];
 
-        Console.Write("Введите максимально допустимое количество задач: ");
-        int maxTasks = ParseAndValidateInt(Console.ReadLine(), 1, 100);
-        
-        Console.Write("Введите максимально допустимую длину задачи: ");
-        int maxTaskLength = ParseAndValidateInt(Console.ReadLine(), 1, 100);
-
         while (true)
         {
             try
             {
-                // throw new Exception();
-                // throw new ArgumentException();
-                // throw new TaskCountLimitException(5);
+                Console.Write("Введите максимально допустимое количество задач: ");
+                var maxTasks = ParseAndValidateInt(Console.ReadLine(), 1, 100);
 
-                ShowMenu(userName);
+                Console.Write("Введите максимально допустимую длину задачи: ");
+                var maxTaskLength = ParseAndValidateInt(Console.ReadLine(), 1, 100);
 
-                Console.Write(userName != ""
-                    ? $"Привет, {userName}! Введите одну из доступных команд: "
-                    : "Введите одну из доступных команд: ");
-
-                Console.ForegroundColor = ConsoleColor.Green;
-                var userInputCommand = ValidateString(Console.ReadLine());
-                Console.ResetColor();
-                var command = "";
-                if (userInputCommand != "")
+                while (true)
                 {
-                    command = userInputCommand.Split(" ")[0];
-                }
+                    try
+                    {
+                        // throw new Exception();
+                        // throw new ArgumentException();
+                        // throw new TaskCountLimitException(5);
 
-                switch (command)
-                {
-                    case "/start":
-                        RunStart(out userName);
-                        break;
-                    case "/help":
-                        RunHelp(userName);
-                        break;
-                    case "/info":
-                        RunInfo(userName);
-                        break;
-                    case "/echo":
-                        RunEcho(userName, userInputCommand);
-                        break;
-                    case "/addtask":
-                    case "/at":
-                        AddTask(tasks, maxTasks, maxTaskLength);
-                        break;
-                    case "/showtasks":
-                    case "/st":
-                        ShowTasks(tasks);
-                        break;
-                    case "/removetask":
-                    case "/rt":
-                        RemoveTask(tasks);
-                        break;
-                    case "/exit":
-                    case "q":
-                        return;
+                        ShowMenu(userName);
+
+                        Console.Write(userName != ""
+                            ? $"Привет, {userName}! Введите одну из доступных команд: "
+                            : "Введите одну из доступных команд: ");
+
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        var userInputCommand = ValidateString(Console.ReadLine());
+                        Console.ResetColor();
+                        var command = "";
+                        if (userInputCommand != "")
+                        {
+                            command = userInputCommand.Split(" ")[0];
+                        }
+
+                        switch (command)
+                        {
+                            case "/start":
+                                RunStart(out userName);
+                                break;
+                            case "/help":
+                                RunHelp(userName);
+                                break;
+                            case "/info":
+                                RunInfo(userName);
+                                break;
+                            case "/echo":
+                                RunEcho(userName, userInputCommand);
+                                break;
+                            case "/addtask":
+                            case "/at":
+                                AddTask(tasks, maxTasks, maxTaskLength);
+                                break;
+                            case "/showtasks":
+                            case "/st":
+                                ShowTasks(tasks);
+                                break;
+                            case "/removetask":
+                            case "/rt":
+                                RemoveTask(tasks);
+                                break;
+                            case "/exit":
+                            case "q":
+                                return;
+                        }
+                    }
+                    catch (ArgumentException e)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine(e.Message);
+                        Console.ResetColor();
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                    }
+                    catch (TaskCountLimitException e)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine(e.Message);
+                        Console.ResetColor();
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                    }
+                    catch (TaskLengthLimitException e)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine(e.Message);
+                        Console.ResetColor();
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                    }
+                    catch (DuplicateTaskException e)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine(e.Message);
+                        Console.ResetColor();
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("Произошла непредвиденная ошибка: ");
+                        Console.WriteLine(
+                            $"e.GetType = {e.GetType()}\ne.Message = {e.Message}\ne.StackTrace = {e.StackTrace}\ne.InnerException = {e.InnerException}");
+                        Console.ResetColor();
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                    }
                 }
             }
             catch (ArgumentException e)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
+                Console.ForegroundColor = ConsoleColor.DarkRed;
                 Console.WriteLine(e.Message);
-                Console.ResetColor();
-                Console.WriteLine("Press any key to continue...");
-                Console.ReadKey();
-            }
-            catch (TaskCountLimitException e)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(e.Message);
-                Console.ResetColor();
-                Console.WriteLine("Press any key to continue...");
-                Console.ReadKey();
-            }
-            catch (TaskLengthLimitException e)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(e.Message);
-                Console.ResetColor();
-                Console.WriteLine("Press any key to continue...");
-                Console.ReadKey();
-            }
-            catch (DuplicateTaskException e)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(e.Message);
-                Console.ResetColor();
-                Console.WriteLine("Press any key to continue...");
-                Console.ReadKey();
-            }
-            catch (Exception e)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("Произошла непредвиденная ошибка: ");
-                Console.WriteLine(
-                    $"e.GetType = {e.GetType()}\ne.Message = {e.Message}\ne.StackTrace = {e.StackTrace}\ne.InnerException = {e.InnerException}");
                 Console.ResetColor();
                 Console.WriteLine("Press any key to continue...");
                 Console.ReadKey();
