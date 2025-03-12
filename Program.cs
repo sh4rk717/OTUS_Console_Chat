@@ -4,125 +4,117 @@ internal static class Program
 {
     private static void Main()
     {
-        var userName = "";
-        List<string> tasks = [];
-
-        while (true)
+        try
         {
-            try
+            var userName = "";
+            List<string> tasks = [];
+
+            const int lowerTasksCount = 1;
+            const int upperTasksCount = 100;
+            const int lowerTaskLength = 1;
+            const int upperTaskLength = 100;
+
+            Console.Write("Введите максимально допустимое количество задач: ");
+            var maxTasks = ParseAndValidateInt(Console.ReadLine(), lowerTasksCount, upperTasksCount);
+
+            Console.Write("Введите максимально допустимую длину задачи: ");
+            var maxTaskLength = ParseAndValidateInt(Console.ReadLine(), lowerTaskLength, upperTaskLength);
+
+            while (true)
             {
-                Console.Write("Введите максимально допустимое количество задач: ");
-                var maxTasks = ParseAndValidateInt(Console.ReadLine(), 1, 100);
-
-                Console.Write("Введите максимально допустимую длину задачи: ");
-                var maxTaskLength = ParseAndValidateInt(Console.ReadLine(), 1, 100);
-
-                while (true)
+                try
                 {
-                    try
-                    {
-                        // throw new Exception();
-                        // throw new ArgumentException();
-                        // throw new TaskCountLimitException(5);
+                    // throw new Exception();
+                    // throw new ArgumentException();
+                    // throw new TaskCountLimitException(5);
 
-                        ShowMenu(userName);
+                    ShowMenu(userName);
 
-                        Console.Write(userName != ""
-                            ? $"Привет, {userName}! Введите одну из доступных команд: "
-                            : "Введите одну из доступных команд: ");
+                    Console.Write(userName != ""
+                        ? $"Привет, {userName}! Введите одну из доступных команд: "
+                        : "Введите одну из доступных команд: ");
 
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        var userInputCommand = ValidateString(Console.ReadLine());
-                        Console.ResetColor();
-                        var command = "";
-                        if (userInputCommand != "")
-                        {
-                            command = userInputCommand.Split(" ")[0];
-                        }
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    var userInputCommand = ValidateString(Console.ReadLine());
+                    Console.ResetColor();
+                    var command = "";
+                    if (userInputCommand != "")
+                    {
+                        command = userInputCommand.Split(" ")[0];
+                    }
 
-                        switch (command)
-                        {
-                            case "/start":
-                                RunStart(out userName);
-                                break;
-                            case "/help":
-                                RunHelp(userName);
-                                break;
-                            case "/info":
-                                RunInfo(userName);
-                                break;
-                            case "/echo":
-                                RunEcho(userName, userInputCommand);
-                                break;
-                            case "/addtask":
-                            case "/at":
-                                AddTask(tasks, maxTasks, maxTaskLength);
-                                break;
-                            case "/showtasks":
-                            case "/st":
-                                ShowTasks(tasks);
-                                break;
-                            case "/removetask":
-                            case "/rt":
-                                RemoveTask(tasks);
-                                break;
-                            case "/exit":
-                            case "q":
-                                return;
-                        }
-                    }
-                    catch (ArgumentException e)
+                    switch (command)
                     {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine(e.Message);
-                        Console.ResetColor();
-                        Console.WriteLine("Press any key to continue...");
-                        Console.ReadKey();
-                    }
-                    catch (TaskCountLimitException e)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine(e.Message);
-                        Console.ResetColor();
-                        Console.WriteLine("Press any key to continue...");
-                        Console.ReadKey();
-                    }
-                    catch (TaskLengthLimitException e)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine(e.Message);
-                        Console.ResetColor();
-                        Console.WriteLine("Press any key to continue...");
-                        Console.ReadKey();
-                    }
-                    catch (DuplicateTaskException e)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine(e.Message);
-                        Console.ResetColor();
-                        Console.WriteLine("Press any key to continue...");
-                        Console.ReadKey();
-                    }
-                    catch (Exception e)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine("Произошла непредвиденная ошибка: ");
-                        Console.WriteLine(
-                            $"e.GetType = {e.GetType()}\ne.Message = {e.Message}\ne.StackTrace = {e.StackTrace}\ne.InnerException = {e.InnerException}");
-                        Console.ResetColor();
-                        Console.WriteLine("Press any key to continue...");
-                        Console.ReadKey();
+                        case "/start":
+                            RunStart(out userName);
+                            break;
+                        case "/help":
+                            RunHelp(userName);
+                            break;
+                        case "/info":
+                            RunInfo(userName);
+                            break;
+                        case "/echo":
+                            RunEcho(userName, userInputCommand);
+                            break;
+                        case "/addtask":
+                        case "/at":
+                            AddTask(tasks, maxTasks, maxTaskLength);
+                            break;
+                        case "/showtasks":
+                        case "/st":
+                            ShowTasks(tasks);
+                            break;
+                        case "/removetask":
+                        case "/rt":
+                            RemoveTask(tasks);
+                            break;
+                        case "/exit":
+                        case "q":
+                            return;
                     }
                 }
+                catch (ArgumentException e)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(e.Message);
+                    Console.ResetColor();
+                    throw;
+                }
+                catch (TaskCountLimitException e)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(e.Message);
+                    Console.ResetColor();
+                    throw;
+                }
+                catch (TaskLengthLimitException e)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(e.Message);
+                    Console.ResetColor();
+                    throw;
+                }
+                catch (DuplicateTaskException e)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(e.Message);
+                    Console.ResetColor();
+                    throw;
+                }
             }
-            catch (ArgumentException e)
-            {
-                Console.ForegroundColor = ConsoleColor.DarkRed;
-                Console.WriteLine(e.Message);
-                Console.ResetColor();
-                Console.WriteLine("Press any key to continue...");
-                Console.ReadKey();
-            }
+        }
+        catch (Exception e)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("Произошла непредвиденная ошибка: ");
+            Console.WriteLine($"e.GetType = {e.GetType()}\n" +
+                              $"e.Message = {e.Message}\n" +
+                              $"e.StackTrace = {e.StackTrace}\n" +
+                              $"e.InnerException = {e.InnerException}");
+            Console.ResetColor();
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey();
         }
     }
 
@@ -272,7 +264,8 @@ internal static class Program
     {
         var isNumber = int.TryParse(str, out var number);
         if (!isNumber || number < min || number > max)
-            throw new ArgumentException();
+            throw new ArgumentException(
+                $"Некорректное значение. Ожидается целое число из диапазона [{min}, {max}]");
         return number;
     }
 
@@ -280,6 +273,6 @@ internal static class Program
     {
         if (str != null && str.Replace(" ", "").Replace("\t", "").Length > 0)
             return str;
-        throw new ArgumentException();
+        throw new ArgumentException("Некорректная строка");
     }
 }
