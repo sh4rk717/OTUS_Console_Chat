@@ -220,7 +220,7 @@ internal static class Program
         else
         {
             Console.WriteLine();
-            for (int i = 0; i < tasks.Count; i++)
+            for (var i = 0; i < tasks.Count; i++)
             {
                 Console.WriteLine($"{i + 1}. {tasks[i]}");
             }
