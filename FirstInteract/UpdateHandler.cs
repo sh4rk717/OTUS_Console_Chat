@@ -3,17 +3,8 @@ using Otus.ToDoList.ConsoleBot.Types;
 
 namespace FirstInteract;
 
-public class UpdateHandler : IUpdateHandler
+public class UpdateHandler(IUserService userService, IToDoService toDoService) : IUpdateHandler
 {
-    private readonly IUserService _userService;
-    private readonly IToDoService _toDoService;
-
-    public UpdateHandler(IUserService userService, IToDoService toDoService)
-    {
-        _userService = userService;
-        _toDoService = toDoService;
-    }
-
     public void HandleUpdateAsync(ITelegramBotClient botClient, Update update)
     {
         try
@@ -88,10 +79,8 @@ public class UpdateHandler : IUpdateHandler
         }
     }
 
-    private void ShowMenu(ITelegramBotClient botClient, Update update)
+    private static void ShowMenu(ITelegramBotClient botClient, Update update)
     {
-        var user = _userService.GetUser(update.Message.From.Id);
-
         foreach (var command in Db.CommandsList)
         {
             botClient.SendMessage(update.Message.Chat, command);
@@ -102,7 +91,7 @@ public class UpdateHandler : IUpdateHandler
 
     private void RunStart(ITelegramBotClient botClient, Update update)
     {
-        _userService.RegisterUser(update.Message.From.Id, update.Message.From.Username!);
+        userService.RegisterUser(update.Message.From.Id, update.Message.From.Username!);
         botClient.SendMessage(update.Message.Chat, "Пользователь зарегистрирован");
     }
 
@@ -133,7 +122,7 @@ public class UpdateHandler : IUpdateHandler
 
     private void AddTask(ITelegramBotClient botClient, Update update, string name)
     {
-        var user = _userService.GetUser(update.Message.From.Id);
+        var user = userService.GetUser(update.Message.From.Id);
 
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
         if (user == null)
@@ -142,26 +131,30 @@ public class UpdateHandler : IUpdateHandler
             return;
         }
 
-        var newTask = _toDoService.Add(user, name);
+        var newTask = toDoService.Add(user, name);
+        var newTaskCountNumber = toDoService.GetAllByUserId(user.UserId).Count;
         botClient.SendMessage(update.Message.Chat,
-            $"Задача \"{newTask.Name}\" добавлена в список под номером {Db.TasksList.Count}: Id = {newTask.Id}");
+            $"Задача \"{newTask.Name}\" добавлена в список под номером {newTaskCountNumber}: Id = {newTask.Id}");
     }
 
     private void ShowTasks(ITelegramBotClient botClient, Update update)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (_userService.GetUser(update.Message.From.Id) == null)
+        if (userService.GetUser(update.Message.From.Id) == null)
         {
             botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
             return;
         }
 
+        var user = userService.GetUser(update.Message.From.Id);
+        var activeTaskCount = toDoService.GetActiveByUserId(user!.UserId).Count;
+        
         botClient.SendMessage(update.Message.Chat, "Ваш список задач:");
-        if (Db.TasksList.Count == 0) botClient.SendMessage(update.Message.Chat, "пуст");
+        if (activeTaskCount == 0) botClient.SendMessage(update.Message.Chat, "пуст");
         else
         {
             var index = 1;
-            foreach (var task in Db.TasksList.Where(t => t.State == ToDoItem.ToDoItemState.Active))
+            foreach (var task in toDoService.GetActiveByUserId(user.UserId).Where(t => t.State == ToDoItem.ToDoItemState.Active))
             {
                 botClient.SendMessage(update.Message.Chat,
                     $"{index++}. {task.Name} - {task.CreatedAt} - {task.Id}");
@@ -172,13 +165,17 @@ public class UpdateHandler : IUpdateHandler
     private void RemoveTask(ITelegramBotClient botClient, Update update, string userInputTaskToRemove)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (_userService.GetUser(update.Message.From.Id) == null)
+        if (userService.GetUser(update.Message.From.Id) == null)
         {
             botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
             return;
         }
+        
+        var user = userService.GetUser(update.Message.From.Id);
+        var taskList = toDoService.GetAllByUserId(user!.UserId);
+        var taskCount = toDoService.GetAllByUserId(user.UserId).Count;
 
-        if (Db.TasksList.Count == 0)
+        if (taskCount == 0)
         {
             botClient.SendMessage(update.Message.Chat, "Ваш список задач пуст\nНет задач для удаления");
 
@@ -187,46 +184,47 @@ public class UpdateHandler : IUpdateHandler
 
         var numberToRemove = 0;
         var isInt = false;
-        while (numberToRemove <= 0 || numberToRemove > Db.TasksList.Count || !isInt)
+        while (numberToRemove <= 0 || numberToRemove > taskCount || !isInt)
         {
             userInputTaskToRemove = Program.ValidateString(userInputTaskToRemove);
             if (userInputTaskToRemove == "q") return;
 
             isInt = int.TryParse(userInputTaskToRemove, out numberToRemove);
 
-            if (numberToRemove > 0 && numberToRemove <= Db.TasksList.Count && isInt) continue;
+            if (numberToRemove > 0 && numberToRemove <= taskCount && isInt) continue;
 
             botClient.SendMessage(update.Message.Chat, "Некорректный номер задачи для удаления");
             botClient.SendMessage(update.Message.Chat,
                 "Введите номер задачи или нажмите q для выхода из режима удаления: ");
         }
 
-        var taskToRemove = Db.TasksList[numberToRemove - 1];
-        Db.TasksList.RemoveAt(numberToRemove - 1);
+        var taskToRemove = taskList[numberToRemove - 1];
+        toDoService.Delete(taskToRemove.Id);
         botClient.SendMessage(update.Message.Chat, $"Задача \"{taskToRemove.Name}\" удалена.");
     }
 
     private void CompleteTask(ITelegramBotClient botClient, Update update, string userInputTaskToMarkComplete)
     {
-        var service = _toDoService;
-
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (_userService.GetUser(update.Message.From.Id) == null)
+        if (userService.GetUser(update.Message.From.Id) == null)
         {
             botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
             return;
         }
 
-        if (Db.TasksList.Count == 0)
+        var user = userService.GetUser(update.Message.From.Id);
+        var taskList = toDoService.GetActiveByUserId(user!.UserId);
+        
+        if (taskList.Count == 0)
         {
             botClient.SendMessage(update.Message.Chat,
                 "Ваш список задач пуст\nНет задач чтоб пометить их как выполненные");
             return;
         }
 
-        foreach (var task in Db.TasksList.Where(x => x.Id == Guid.Parse(userInputTaskToMarkComplete)))
+        foreach (var task in taskList.Where(x => x.Id == Guid.Parse(userInputTaskToMarkComplete)))
         {
-            service.MarkCompleted(task.Id);
+            toDoService.MarkCompleted(task.Id);
             botClient.SendMessage(update.Message.Chat, $"Задача \"{task.Name}\" помечена исполненной.");
         }
     }
@@ -234,18 +232,21 @@ public class UpdateHandler : IUpdateHandler
     private void ShowAllTasks(ITelegramBotClient botClient, Update update)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (_userService.GetUser(update.Message.From.Id) == null)
+        if (userService.GetUser(update.Message.From.Id) == null)
         {
             botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
             return;
         }
-
+        
+        var user = userService.GetUser(update.Message.From.Id);
+        var taskList = toDoService.GetAllByUserId(user!.UserId);
+        
         botClient.SendMessage(update.Message.Chat, "Ваш список задач:");
-        if (Db.TasksList.Count == 0) botClient.SendMessage(update.Message.Chat, "пуст");
+        if (taskList.Count == 0) botClient.SendMessage(update.Message.Chat, "пуст");
         else
         {
             var index = 1;
-            foreach (var task in Db.TasksList)
+            foreach (var task in taskList)
             {
                 botClient.SendMessage(update.Message.Chat,
                     $"({task.State}) {index++}. {task.Name} - {task.CreatedAt} - {task.Id}");

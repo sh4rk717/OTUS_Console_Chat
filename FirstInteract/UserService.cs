@@ -2,10 +2,13 @@
 
 public class UserService : IUserService
 {
+    private readonly List<ToDoUser> _users = [];
+    private readonly List<string> _commandsList = ["/start", "/help", "/info"];
+
     public ToDoUser RegisterUser(long telegramUserId, string telegramUserName)
     {
         // throw new NotImplementedException();
-        foreach (var user in Db.UserList.Where(user => user.TelegramUserId == telegramUserId))
+        foreach (var user in _users.Where(user => user.TelegramUserId == telegramUserId))
         {
             //пользователь уже зарегистрирован
             return user;
@@ -18,13 +21,13 @@ public class UserService : IUserService
             TelegramUserName = telegramUserName,
             UserId = Guid.NewGuid()
         };
-        Db.UserList.Add(newUser);
-        Db.CommandsList.AddRange(["/addtask", "/showtasks", "/removetask", "/completetask", "/showalltasks"]);
+        _users.Add(newUser);
+        _commandsList.AddRange(["/addtask", "/showtasks", "/removetask", "/completetask", "/showalltasks"]);
         return newUser;
     }
 
     public ToDoUser? GetUser(long telegramUserId)
     {
-        return Db.UserList.FirstOrDefault(user => user.TelegramUserId == telegramUserId);
+        return _users.FirstOrDefault(user => user.TelegramUserId == telegramUserId);
     }
 }

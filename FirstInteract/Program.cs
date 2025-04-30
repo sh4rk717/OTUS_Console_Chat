@@ -8,7 +8,6 @@ internal static class Program
     public static int MaxTaskLength;
     public static int MaxTasks;
 
-
     public static void Main()
     {
         try
@@ -17,7 +16,6 @@ internal static class Program
             IToDoService toDoService = new ToDoService();
             var handler = new UpdateHandler(userService, toDoService);
             var botClient = new ConsoleBotClient();
-
 
             const int lowerTasksCount = 1;
             const int upperTasksCount = 100;
@@ -62,8 +60,7 @@ internal static class Program
     public static string ValidateString(string? str)
     {
         if (string.IsNullOrWhiteSpace(str)) throw new ArgumentException("Некорректная строка");
-        
-        return str;
 
+        return str;
     }
 }
