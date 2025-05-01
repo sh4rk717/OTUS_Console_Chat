@@ -9,43 +9,33 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
     {
         try
         {
-            // ShowMenu(botClient, update);
-
             var command = update.Message.Text.Split(" ")[0]; //до 1-ого пробела
             var restArgs = string.Join(" ", update.Message.Text.Split(" ")[1..]); //все остальное после 1-ого пробела
             switch (command)
             {
                 case "/start":
                     RunStart(botClient, update);
-                    ShowMenu(botClient, update);
                     break;
                 case "/help":
                     RunHelp(botClient, update);
-                    ShowMenu(botClient, update);
                     break;
                 case "/info":
                     RunInfo(botClient, update);
-                    ShowMenu(botClient, update);
                     break;
                 case "/addtask":
                     AddTask(botClient, update, restArgs);
-                    // ShowMenu(botClient, update);
                     break;
                 case "/showtasks":
                     ShowTasks(botClient, update);
-                    ShowMenu(botClient, update);
                     break;
                 case "/removetask":
                     RemoveTask(botClient, update, restArgs);
-                    ShowMenu(botClient, update);
                     break;
                 case "/completetask":
                     CompleteTask(botClient, update, restArgs);
-                    ShowMenu(botClient, update);
                     break;
                 case "/showalltasks":
                     ShowAllTasks(botClient, update);
-                    ShowMenu(botClient, update);
                     break;
             }
         }
@@ -79,15 +69,15 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
         }
     }
 
-    private static void ShowMenu(ITelegramBotClient botClient, Update update)
-    {
-        foreach (var command in Db.CommandsList)
-        {
-            botClient.SendMessage(update.Message.Chat, command);
-        }
-
-        botClient.SendMessage(update.Message.Chat, "Введите одну из доступных команд: ");
-    }
+    // private static void ShowMenu(ITelegramBotClient botClient, Update update)
+    // {
+    //     foreach (var command in Db.CommandsList)
+    //     {
+    //         botClient.SendMessage(update.Message.Chat, command);
+    //     }
+    //
+    //     botClient.SendMessage(update.Message.Chat, "Введите одну из доступных команд: ");
+    // }
 
     private void RunStart(ITelegramBotClient botClient, Update update)
     {
@@ -101,11 +91,13 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
             """
             Программа имитирует Telegram-чат
             Пользователю доступен набор команд...
-            ...some text...
-            Команды доступные в чате после регистрации пользователя:
-                /addtask    - позволяет добавить задачу в список задач
-                /showtasks  - позволяет просмотреть текущий список активных задач
-                /removetask - позволяет удалить задачу из списка задач
+                /start        - регистрация пользователя
+                /help         - помощь
+                /info         - информация о программе
+            Команды доступные после регистрации пользователя:
+                /addtask      - позволяет добавить задачу в список задач
+                /showtasks    - позволяет просмотреть текущий список активных задач
+                /removetask   - позволяет удалить задачу из списка задач
                 /completetask - позволяет пометить задачу как завершенную
                 /showalltasks - позволяет просмотреть список всех задач
             """);
@@ -116,7 +108,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
         botClient.SendMessage(update.Message.Chat, """
                                                    Program info: version 1.0b.
                                                    Created: Feb 18, 2025
-                                                   Last updated: Apr 27, 2025
+                                                   Last updated: May 1, 2025
                                                    """);
     }
 
