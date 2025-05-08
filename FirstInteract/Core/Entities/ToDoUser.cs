@@ -1,4 +1,4 @@
-﻿namespace FirstInteract;
+﻿namespace FirstInteract.Core.Entities;
 
 public class ToDoUser
 {

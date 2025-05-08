@@ -1,4 +1,6 @@
-﻿namespace FirstInteract;
+﻿using FirstInteract.Core.Entities;
+
+namespace FirstInteract.Core.Services;
 
 public interface IToDoService
 {
@@ -8,4 +10,6 @@ public interface IToDoService
     ToDoItem Add(ToDoUser user, string name);
     void MarkCompleted(Guid id);
     void Delete(Guid id);
+    
+    IReadOnlyList<ToDoItem> Find(ToDoUser user, string namePrefix);
 }
