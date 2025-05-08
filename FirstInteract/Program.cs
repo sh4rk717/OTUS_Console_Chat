@@ -1,5 +1,9 @@
-﻿using Otus.ToDoList.ConsoleBot;
-using Otus.ToDoList.ConsoleBot.Types;
+﻿using FirstInteract.Core.DataAccess;
+using FirstInteract.Core.Services;
+using FirstInteract.Infrastructure.DataAccess;
+using FirstInteract.TelegramBot;
+using Otus.ToDoList.ConsoleBot;
+// using Otus.ToDoList.ConsoleBot.Types;
 
 namespace FirstInteract;
 
@@ -12,9 +16,12 @@ internal static class Program
     {
         try
         {
-            IUserService userService = new UserService();
-            IToDoService toDoService = new ToDoService();
-            var handler = new UpdateHandler(userService, toDoService);
+            IUserRepository userRepository = new InMemoryUserRepository();
+            IToDoRepository toDoRepository = new InMemoryToDoRepository();
+            IToDoReportService toDoReportService = new ToDoReportService(toDoRepository);
+            IUserService userService = new UserService(userRepository);
+            IToDoService toDoService = new ToDoService(toDoRepository);
+            var handler = new UpdateHandler(userService, toDoService, toDoReportService);
             var botClient = new ConsoleBotClient();
 
             const int lowerTasksCount = 1;
@@ -46,7 +53,6 @@ internal static class Program
             Console.ReadKey();
         }
     }
-
 
     private static int ParseAndValidateInt(string? str, int min, int max)
     {

@@ -1,4 +1,6 @@
-﻿namespace FirstInteract;
+﻿using FirstInteract.Core.Entities;
+
+namespace FirstInteract.Core.Services;
 
 public interface IUserService
 {
