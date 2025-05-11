@@ -126,7 +126,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         }
 
         var newTask = toDoService.Add(user, name);
-        var newTaskCountNumber = toDoService.GetAllByUserId(user.UserId).Count;
+        var newTaskCountNumber = toDoService.GetActiveByUserId(user.UserId).Count;
         botClient.SendMessage(update.Message.Chat,
             $"Задача \"{newTask.Name}\" добавлена в список под номером {newTaskCountNumber}: Id = {newTask.Id}");
     }

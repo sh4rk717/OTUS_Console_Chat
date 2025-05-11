@@ -1,5 +1,6 @@
 ﻿using FirstInteract.Core.DataAccess;
 using FirstInteract.Core.Entities;
+using FirstInteract.Core.Exceptions;
 
 namespace FirstInteract.Core.Services;
 
@@ -21,6 +22,20 @@ public class ToDoService(IToDoRepository repository) : IToDoService
     public ToDoItem Add(ToDoUser user, string name)
     {
         var newTaskItem = new ToDoItem(name, user);
+        var newTask = Program.ValidateString(name);
+
+        // проверка на кол-во задач
+        if (repository.GetAllByUserId(user.UserId).Count >= Program.MaxTasks)
+            throw new TaskCountLimitException(Program.MaxTasks);
+        
+        // проверка на длину имени задачи
+        if (newTask.Length > Program.MaxTaskLength)
+            throw new TaskLengthLimitException(newTask.Length, Program.MaxTaskLength);
+
+        // проверка на дубликат задачи по имени задачи
+        if (repository.GetActiveByUserId(user.UserId).FirstOrDefault(x=>x.Name == name) != null)
+            throw new DuplicateTaskException(newTask);
+        
         repository.Add(newTaskItem);
 
         return newTaskItem;

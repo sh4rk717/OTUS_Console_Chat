@@ -25,18 +25,6 @@ public class InMemoryToDoRepository : IToDoRepository
 
     public void Add(ToDoItem item)
     {
-        if (_items.Count >= Program.MaxTasks)
-            throw new TaskCountLimitException(Program.MaxTasks);
-
-        var newTask = Program.ValidateString(item.Name);
-
-        if (newTask.Length > Program.MaxTaskLength)
-            throw new TaskLengthLimitException(newTask.Length, Program.MaxTaskLength);
-
-        var newTaskItem = new ToDoItem(newTask, item.User);
-        if (_items.Contains(newTaskItem))
-            throw new DuplicateTaskException(newTask);
-
         _items.Add(item);
     }
 
