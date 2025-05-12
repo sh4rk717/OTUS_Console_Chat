@@ -4,17 +4,16 @@ namespace FirstInteract.Core.DataAccess;
 
 public interface IToDoRepository
 {
-    IReadOnlyList<ToDoItem> GetAllByUserId(Guid userId);
+    Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct);
     //Возвращает ToDoItem для UserId со статусом Active
-    IReadOnlyList<ToDoItem> GetActiveByUserId(Guid userId);
-    ToDoItem? Get(Guid id);
-    void Add(ToDoItem item);
-    void Update(ToDoItem item);
-    void Delete(Guid id);
+    Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct);
+    Task<ToDoItem?> Get(Guid id, CancellationToken ct);
+    Task Add(ToDoItem item, CancellationToken ct);
+    Task Update(ToDoItem item, CancellationToken ct);
+    Task Delete(Guid id, CancellationToken ct);
     //Проверяет есть ли задача с таким именем у пользователя
-    bool ExistsByName(Guid userId, string name);
+    Task<bool> ExistsByName(Guid userId, string name, CancellationToken ct);
     //Возвращает количество активных задач у пользователя
-    int CountActive(Guid userId);
-    
-    IReadOnlyList<ToDoItem> Find(Guid userId, Func<ToDoItem, bool> predicate);
+    Task<int> CountActive(Guid userId, CancellationToken ct);
+    Task<IReadOnlyList<ToDoItem>> Find(Guid userId, Func<ToDoItem, bool> predicate, CancellationToken ct);
 }

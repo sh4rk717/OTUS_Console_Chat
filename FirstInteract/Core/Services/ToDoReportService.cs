@@ -5,12 +5,15 @@ namespace FirstInteract.Core.Services;
 
 public class ToDoReportService(IToDoRepository toDoRepository) : IToDoReportService
 {
-    public (int total, int completed, int active, DateTime generatedAt) GetUserStats(Guid userId)
+    public async Task<(int total, int completed, int active, DateTime generatedAt)> GetUserStats(Guid userId, CancellationToken ct)
     {
-        // userRepository.GetUser(userId);
-        var total = toDoRepository.GetAllByUserId(userId).Count();
-        var completed = toDoRepository.GetAllByUserId(userId).Count(x => x.State == ToDoItem.ToDoItemState.Completed);
-        var active = toDoRepository.GetActiveByUserId(userId).Count();
+        var totalList = await toDoRepository.GetAllByUserId(userId, ct);
+        var completedList = await toDoRepository.GetAllByUserId(userId, ct);
+        var activeList = await toDoRepository.GetActiveByUserId(userId, ct);
+
+        var total = totalList.Count;
+        var completed = completedList.Count(x => x.State == ToDoItem.ToDoItemState.Completed);
+        var active = activeList.Count;
 
         return (total, completed, active, generatedAt: DateTime.Now);
     }
