@@ -1,9 +1,13 @@
-﻿using Otus.ToDoList.ConsoleBot;
+﻿using FirstInteract.Core.Entities;
+using FirstInteract.Core.Exceptions;
+using FirstInteract.Core.Services;
+using Otus.ToDoList.ConsoleBot;
 using Otus.ToDoList.ConsoleBot.Types;
 
-namespace FirstInteract;
+namespace FirstInteract.TelegramBot;
 
-public class UpdateHandler(IUserService userService, IToDoService toDoService) : IUpdateHandler
+public class UpdateHandler(IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
+    : IUpdateHandler
 {
     public void HandleUpdateAsync(ITelegramBotClient botClient, Update update)
     {
@@ -37,6 +41,12 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
                 case "/showalltasks":
                     ShowAllTasks(botClient, update);
                     break;
+                case "/report":
+                    Report(botClient, update, toDoReportService);
+                    break;
+                case "/find":
+                    Find(botClient, update, restArgs);
+                    break;
             }
         }
         catch (ArgumentException e)
@@ -69,16 +79,6 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
         }
     }
 
-    // private static void ShowMenu(ITelegramBotClient botClient, Update update)
-    // {
-    //     foreach (var command in Db.CommandsList)
-    //     {
-    //         botClient.SendMessage(update.Message.Chat, command);
-    //     }
-    //
-    //     botClient.SendMessage(update.Message.Chat, "Введите одну из доступных команд: ");
-    // }
-
     private void RunStart(ITelegramBotClient botClient, Update update)
     {
         userService.RegisterUser(update.Message.From.Id, update.Message.From.Username!);
@@ -97,9 +97,11 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
             Команды доступные после регистрации пользователя:
                 /addtask      - позволяет добавить задачу в список задач
                 /showtasks    - позволяет просмотреть текущий список активных задач
-                /removetask   - позволяет удалить задачу из списка задач
-                /completetask - позволяет пометить задачу как завершенную
+                /removetask   - позволяет удалить задачу из списка задач по ее порядковому номеру
+                /completetask - позволяет пометить задачу как завершенную по ее GUID
                 /showalltasks - позволяет просмотреть список всех задач
+                /report       - отчет по задачам пользователя
+                /find         - поиск задач по началу их названия
             """);
     }
 
@@ -108,7 +110,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
         botClient.SendMessage(update.Message.Chat, """
                                                    Program info: version 1.0b.
                                                    Created: Feb 18, 2025
-                                                   Last updated: May 1, 2025
+                                                   Last updated: May 9, 2025
                                                    """);
     }
 
@@ -124,7 +126,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
         }
 
         var newTask = toDoService.Add(user, name);
-        var newTaskCountNumber = toDoService.GetAllByUserId(user.UserId).Count;
+        var newTaskCountNumber = toDoService.GetActiveByUserId(user.UserId).Count;
         botClient.SendMessage(update.Message.Chat,
             $"Задача \"{newTask.Name}\" добавлена в список под номером {newTaskCountNumber}: Id = {newTask.Id}");
     }
@@ -140,13 +142,14 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
 
         var user = userService.GetUser(update.Message.From.Id);
         var activeTaskCount = toDoService.GetActiveByUserId(user!.UserId).Count;
-        
+
         botClient.SendMessage(update.Message.Chat, "Ваш список задач:");
         if (activeTaskCount == 0) botClient.SendMessage(update.Message.Chat, "пуст");
         else
         {
             var index = 1;
-            foreach (var task in toDoService.GetActiveByUserId(user.UserId).Where(t => t.State == ToDoItem.ToDoItemState.Active))
+            foreach (var task in toDoService.GetActiveByUserId(user.UserId)
+                         .Where(t => t.State == ToDoItem.ToDoItemState.Active))
             {
                 botClient.SendMessage(update.Message.Chat,
                     $"{index++}. {task.Name} - {task.CreatedAt} - {task.Id}");
@@ -162,7 +165,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
             botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
             return;
         }
-        
+
         var user = userService.GetUser(update.Message.From.Id);
         var taskList = toDoService.GetAllByUserId(user!.UserId);
         var taskCount = toDoService.GetAllByUserId(user.UserId).Count;
@@ -206,7 +209,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
 
         var user = userService.GetUser(update.Message.From.Id);
         var taskList = toDoService.GetActiveByUserId(user!.UserId);
-        
+
         if (taskList.Count == 0)
         {
             botClient.SendMessage(update.Message.Chat,
@@ -229,11 +232,52 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService) :
             botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
             return;
         }
-        
+
         var user = userService.GetUser(update.Message.From.Id);
         var taskList = toDoService.GetAllByUserId(user!.UserId);
-        
+
         botClient.SendMessage(update.Message.Chat, "Ваш список задач:");
+        if (taskList.Count == 0) botClient.SendMessage(update.Message.Chat, "пуст");
+        else
+        {
+            var index = 1;
+            foreach (var task in taskList)
+            {
+                botClient.SendMessage(update.Message.Chat,
+                    $"({task.State}) {index++}. {task.Name} - {task.CreatedAt} - {task.Id}");
+            }
+        }
+    }
+
+    private void Report(ITelegramBotClient botClient, Update update, IToDoReportService toDoReport)
+    {
+        //если пользователь не зарегистрирован, то ничего не происходит при вызове
+        if (userService.GetUser(update.Message.From.Id) == null)
+        {
+            botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
+            return;
+        }
+
+        var tuple = toDoReport.GetUserStats(userService.GetUser(update.Message.From.Id)!.UserId);
+        botClient.SendMessage(update.Message.Chat,
+            $"Статистика по задачам на {tuple.generatedAt}. Всего: {tuple.total}; Завершенных: {tuple.completed}; Активных: {tuple.active};");
+    }
+    
+    private void Find(ITelegramBotClient botClient, Update update, string taskStartsWithString)
+    {
+        //если пользователь не зарегистрирован, то ничего не происходит при вызове
+        if (userService.GetUser(update.Message.From.Id) == null)
+        {
+            botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
+            return;
+        }
+        
+        taskStartsWithString = Program.ValidateString(taskStartsWithString);
+
+        var user = userService.GetUser(update.Message.From.Id);
+        var taskList = toDoService.Find(user!, taskStartsWithString);
+
+        botClient.SendMessage(update.Message.Chat, "Список найденных задач:");
         if (taskList.Count == 0) botClient.SendMessage(update.Message.Chat, "пуст");
         else
         {

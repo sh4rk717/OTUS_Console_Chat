@@ -1,4 +1,4 @@
-﻿namespace FirstInteract;
+﻿namespace FirstInteract.Core.Exceptions;
 
 public class TaskCountLimitException(int taskCountLimit)
     : Exception($"Превышено максимальное количество задач равное {taskCountLimit}");
