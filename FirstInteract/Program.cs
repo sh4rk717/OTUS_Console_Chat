@@ -11,16 +11,6 @@ internal static class Program
     public static int MaxTaskLength;
     public static int MaxTasks;
 
-    private static void DisplayMessageStart(string message)
-    {
-        Console.WriteLine($"Началась обработка сообщения '{message}' в {DateTime.Now}");
-    }
-
-    private static void DisplayMessageStop(string message)
-    {
-        Console.WriteLine($"Закончилась обработка сообщения '{message}' в {DateTime.Now}");
-    }
-
     public static void Main()
     {
         IUserRepository userRepository = new InMemoryUserRepository();
@@ -87,5 +77,15 @@ internal static class Program
         if (string.IsNullOrWhiteSpace(str)) throw new ArgumentException("Некорректная строка");
 
         return str;
+    }
+
+    private static void DisplayMessageStart(string message)
+    {
+        Console.WriteLine($"Началась обработка сообщения '{message}' в {DateTime.Now:O}");
+    }
+
+    private static void DisplayMessageStop(string message)
+    {
+        Console.WriteLine($"Закончилась обработка сообщения '{message}' в {DateTime.Now:O}");
     }
 }
