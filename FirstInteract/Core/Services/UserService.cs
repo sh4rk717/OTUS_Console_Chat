@@ -5,10 +5,7 @@ namespace FirstInteract.Core.Services;
 
 public class UserService(IUserRepository userRepository) : IUserService
 {
-    // private readonly List<ToDoUser> _users = [];
-    // private IUserRepository _userRepository = userRepository;
-    
-    public ToDoUser RegisterUser(long telegramUserId, string telegramUserName)
+    public async Task<ToDoUser> RegisterUser(long telegramUserId, string telegramUserName, CancellationToken ct)
     {
         var newUser = new ToDoUser()
         {
@@ -18,12 +15,12 @@ public class UserService(IUserRepository userRepository) : IUserService
             UserId = Guid.NewGuid()
         };
         
-        userRepository.Add(newUser);
+        await userRepository.Add(newUser, ct);
         return newUser;
     }
 
-    public ToDoUser? GetUser(long telegramUserId)
+    public async Task<ToDoUser?> GetUser(long telegramUserId, CancellationToken ct)
     {
-        return userRepository.GetUserByTelegramUserId(telegramUserId);
+        return await userRepository.GetUserByTelegramUserId(telegramUserId, ct);
     }
 }

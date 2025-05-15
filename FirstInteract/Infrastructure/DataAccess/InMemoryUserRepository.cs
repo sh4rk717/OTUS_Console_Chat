@@ -7,21 +7,23 @@ public class InMemoryUserRepository : IUserRepository
 {
     private readonly List<ToDoUser> _users = [];
     
-    public ToDoUser? GetUser(Guid userId)
+    public Task<ToDoUser?> GetUser(Guid userId, CancellationToken ct)
     {
-        return _users.FirstOrDefault(user => user.UserId == userId);
+        return Task.FromResult(_users.FirstOrDefault(user => user.UserId == userId));
     }
 
-    public ToDoUser? GetUserByTelegramUserId(long telegramUserId)
+    public Task<ToDoUser?> GetUserByTelegramUserId(long telegramUserId, CancellationToken ct)
     {
-        return _users.FirstOrDefault(user => user.TelegramUserId == telegramUserId);
+        return Task.FromResult(_users.FirstOrDefault(user => user.TelegramUserId == telegramUserId));
     }
 
-    public void Add(ToDoUser user)
+    public Task Add(ToDoUser user, CancellationToken ct)
     {
         if (!_users.Contains(user))
         {
             _users.Add(user);
         }
+
+        return Task.CompletedTask;
     }
 }

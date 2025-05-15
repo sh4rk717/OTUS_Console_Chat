@@ -8,49 +8,52 @@ public class InMemoryToDoRepository : IToDoRepository
 {
     private readonly List<ToDoItem> _items = [];
 
-    public IReadOnlyList<ToDoItem> GetAllByUserId(Guid userId)
+    public Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct)
     {
-        return _items.Where(x => x.User.UserId == userId).ToList();
+        return Task.FromResult<IReadOnlyList<ToDoItem>>(_items.Where(x => x.User.UserId == userId).ToList());
     }
 
-    public IReadOnlyList<ToDoItem> GetActiveByUserId(Guid userId)
+    public Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct)
     {
-        return _items.Where(x => x.User.UserId == userId && x.State == ToDoItem.ToDoItemState.Active).ToList();
+        return Task.FromResult<IReadOnlyList<ToDoItem>>(_items.Where(x => x.User.UserId == userId && x.State == ToDoItem.ToDoItemState.Active).ToList());
     }
 
-    public ToDoItem? Get(Guid id)
+    public Task<ToDoItem?> Get(Guid id, CancellationToken ct)
     {
-        return _items.FirstOrDefault(x => x.Id == id);
+        return Task.FromResult(_items.FirstOrDefault(x => x.Id == id));
     }
 
-    public void Add(ToDoItem item)
+    public Task Add(ToDoItem item, CancellationToken ct)
     {
         _items.Add(item);
+        return Task.CompletedTask;
     }
 
-    public void Update(ToDoItem item)
+    public Task Update(ToDoItem item, CancellationToken ct)
     {
         var index = _items.FindIndex(x => x.Id == item.Id);
         _items[index] = item;
+        return Task.CompletedTask;
     }
 
-    public void Delete(Guid id)
+    public Task Delete(Guid id, CancellationToken ct)
     {
         _items.RemoveAll(x => x.Id == id);
+        return Task.CompletedTask;
     }
 
-    public bool ExistsByName(Guid userId, string name)
+    public Task<bool> ExistsByName(Guid userId, string name, CancellationToken ct)
     {
-        return _items.FirstOrDefault(x => x.User.UserId == userId && x.Name == name) != null;
+        return Task.FromResult(_items.Any(x => x.User.UserId == userId && x.Name == name));
     }
 
-    public int CountActive(Guid userId)
+    public Task<int> CountActive(Guid userId, CancellationToken ct)
     {
-        return _items.Count(x => x.User.UserId == userId);
+        return Task.FromResult(_items.Count(x => x.User.UserId == userId));
     }
 
-    public IReadOnlyList<ToDoItem> Find(Guid userId, Func<ToDoItem, bool> predicate)
+    public Task<IReadOnlyList<ToDoItem>> Find(Guid userId, Func<ToDoItem, bool> predicate, CancellationToken ct)
     {
-        return _items.Where(x => x.User.UserId == userId && predicate(x)).ToList();
+        return Task.FromResult<IReadOnlyList<ToDoItem>>(_items.Where(x => x.User.UserId == userId && predicate(x)).ToList());
     }
 }

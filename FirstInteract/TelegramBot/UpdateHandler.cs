@@ -9,45 +9,60 @@ namespace FirstInteract.TelegramBot;
 public class UpdateHandler(IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
     : IUpdateHandler
 {
-    public void HandleUpdateAsync(ITelegramBotClient botClient, Update update)
+    public delegate void MessageEventHandler(string message);
+
+    public event MessageEventHandler? OnHandleUpdateStarted;
+    public event MessageEventHandler? OnHandleUpdateCompleted;
+
+    public Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken ct)
+    {
+        Console.WriteLine($"HandleError: {exception})");
+        return Task.CompletedTask;
+    }
+
+    public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken ct)
     {
         try
         {
+            OnHandleUpdateStarted?.Invoke(update.Message.Text);
+
             var command = update.Message.Text.Split(" ")[0]; //до 1-ого пробела
             var restArgs = string.Join(" ", update.Message.Text.Split(" ")[1..]); //все остальное после 1-ого пробела
             switch (command)
             {
                 case "/start":
-                    RunStart(botClient, update);
+                    await RunStart(botClient, update, ct);
                     break;
                 case "/help":
-                    RunHelp(botClient, update);
+                    await RunHelp(botClient, update, ct);
                     break;
                 case "/info":
-                    RunInfo(botClient, update);
+                    await RunInfo(botClient, update, ct);
                     break;
                 case "/addtask":
-                    AddTask(botClient, update, restArgs);
+                    await AddTask(botClient, update, restArgs, ct);
                     break;
                 case "/showtasks":
-                    ShowTasks(botClient, update);
+                    await ShowTasks(botClient, update, ct);
                     break;
                 case "/removetask":
-                    RemoveTask(botClient, update, restArgs);
+                    await RemoveTask(botClient, update, restArgs, ct);
                     break;
                 case "/completetask":
-                    CompleteTask(botClient, update, restArgs);
+                    await CompleteTask(botClient, update, restArgs, ct);
                     break;
                 case "/showalltasks":
-                    ShowAllTasks(botClient, update);
+                    await ShowAllTasks(botClient, update, ct);
                     break;
                 case "/report":
-                    Report(botClient, update, toDoReportService);
+                    await Report(botClient, update, toDoReportService, ct);
                     break;
                 case "/find":
-                    Find(botClient, update, restArgs);
+                    await Find(botClient, update, restArgs, ct);
                     break;
             }
+
+            OnHandleUpdateCompleted?.Invoke(update.Message.Text);
         }
         catch (ArgumentException e)
         {
@@ -79,15 +94,15 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         }
     }
 
-    private void RunStart(ITelegramBotClient botClient, Update update)
+    private async Task RunStart(ITelegramBotClient botClient, Update update, CancellationToken ct)
     {
-        userService.RegisterUser(update.Message.From.Id, update.Message.From.Username!);
-        botClient.SendMessage(update.Message.Chat, "Пользователь зарегистрирован");
+        await userService.RegisterUser(update.Message.From.Id, update.Message.From.Username!, ct);
+        await botClient.SendMessage(update.Message.Chat, "Пользователь зарегистрирован", ct);
     }
 
-    private static void RunHelp(ITelegramBotClient botClient, Update update)
+    private static async Task RunHelp(ITelegramBotClient botClient, Update update, CancellationToken ct)
     {
-        botClient.SendMessage(update.Message.Chat,
+        await botClient.SendMessage(update.Message.Chat,
             """
             Программа имитирует Telegram-чат
             Пользователю доступен набор команд...
@@ -102,77 +117,80 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
                 /showalltasks - позволяет просмотреть список всех задач
                 /report       - отчет по задачам пользователя
                 /find         - поиск задач по началу их названия
-            """);
+            """, ct);
     }
 
-    private static void RunInfo(ITelegramBotClient botClient, Update update)
+    private static async Task RunInfo(ITelegramBotClient botClient, Update update, CancellationToken ct)
     {
-        botClient.SendMessage(update.Message.Chat, """
-                                                   Program info: version 1.0b.
-                                                   Created: Feb 18, 2025
-                                                   Last updated: May 9, 2025
-                                                   """);
+        await botClient.SendMessage(update.Message.Chat, """
+                                                         Program info: version 1.0b.
+                                                         Created: Feb 18, 2025
+                                                         Last updated: May 9, 2025
+                                                         """, ct);
     }
 
-    private void AddTask(ITelegramBotClient botClient, Update update, string name)
+    private async Task AddTask(ITelegramBotClient botClient, Update update, string name, CancellationToken ct)
     {
-        var user = userService.GetUser(update.Message.From.Id);
+        var user = await userService.GetUser(update.Message.From.Id, ct);
 
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
         if (user == null)
         {
-            botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
+            await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован", ct);
             return;
         }
 
-        var newTask = toDoService.Add(user, name);
-        var newTaskCountNumber = toDoService.GetActiveByUserId(user.UserId).Count;
-        botClient.SendMessage(update.Message.Chat,
-            $"Задача \"{newTask.Name}\" добавлена в список под номером {newTaskCountNumber}: Id = {newTask.Id}");
+        var newTask = await toDoService.Add(user, name, ct);
+        var itemList = await toDoService.GetActiveByUserId(user.UserId, ct);
+        var newTaskCountNumber = itemList.Count;
+        await botClient.SendMessage(update.Message.Chat,
+            $"Задача \"{newTask.Name}\" добавлена в список под номером {newTaskCountNumber}: Id = {newTask.Id}", ct);
     }
 
-    private void ShowTasks(ITelegramBotClient botClient, Update update)
+    private async Task ShowTasks(ITelegramBotClient botClient, Update update, CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (userService.GetUser(update.Message.From.Id) == null)
+        if (await userService.GetUser(update.Message.From.Id, ct) == null)
         {
-            botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
+            await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован", ct);
             return;
         }
 
-        var user = userService.GetUser(update.Message.From.Id);
-        var activeTaskCount = toDoService.GetActiveByUserId(user!.UserId).Count;
+        var user = await userService.GetUser(update.Message.From.Id, ct);
+        var activeTasks = await toDoService.GetActiveByUserId(user!.UserId, ct);
+        var activeTaskCount = activeTasks.Count;
 
-        botClient.SendMessage(update.Message.Chat, "Ваш список задач:");
-        if (activeTaskCount == 0) botClient.SendMessage(update.Message.Chat, "пуст");
+        await botClient.SendMessage(update.Message.Chat, "Ваш список задач:", ct);
+        if (activeTaskCount == 0)
+            await botClient.SendMessage(update.Message.Chat, "пуст", ct);
         else
         {
             var index = 1;
-            foreach (var task in toDoService.GetActiveByUserId(user.UserId)
-                         .Where(t => t.State == ToDoItem.ToDoItemState.Active))
+            foreach (var item in activeTasks.Where(t => t.State == ToDoItem.ToDoItemState.Active))
             {
-                botClient.SendMessage(update.Message.Chat,
-                    $"{index++}. {task.Name} - {task.CreatedAt} - {task.Id}");
+                await botClient.SendMessage(update.Message.Chat,
+                    $"{index++}. {item.Name} - {item.CreatedAt} - {item.Id}", ct);
             }
         }
     }
 
-    private void RemoveTask(ITelegramBotClient botClient, Update update, string userInputTaskToRemove)
+    private async Task RemoveTask(ITelegramBotClient botClient, Update update, string userInputTaskToRemove,
+        CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (userService.GetUser(update.Message.From.Id) == null)
+        if (await userService.GetUser(update.Message.From.Id, ct) == null)
         {
-            botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
+            await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован", ct);
             return;
         }
 
-        var user = userService.GetUser(update.Message.From.Id);
-        var taskList = toDoService.GetAllByUserId(user!.UserId);
-        var taskCount = toDoService.GetAllByUserId(user.UserId).Count;
+        var user = await userService.GetUser(update.Message.From.Id, ct);
+        var taskList = await toDoService.GetAllByUserId(user!.UserId, ct);
+        var taskCount = taskList.Count;
 
         if (taskCount == 0)
         {
-            botClient.SendMessage(update.Message.Chat, "Ваш список задач пуст\nНет задач для удаления");
+            await botClient.SendMessage(update.Message.Chat, "Ваш список задач пуст\nНет задач для удаления", ct);
 
             return;
         }
@@ -188,104 +206,108 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
 
             if (numberToRemove > 0 && numberToRemove <= taskCount && isInt) continue;
 
-            botClient.SendMessage(update.Message.Chat, "Некорректный номер задачи для удаления");
-            botClient.SendMessage(update.Message.Chat,
-                "Введите номер задачи или нажмите q для выхода из режима удаления: ");
+            await botClient.SendMessage(update.Message.Chat, "Некорректный номер задачи для удаления", ct);
+            await botClient.SendMessage(update.Message.Chat,
+                "Введите номер задачи или нажмите q для выхода из режима удаления: ", ct);
         }
 
         var taskToRemove = taskList[numberToRemove - 1];
-        toDoService.Delete(taskToRemove.Id);
-        botClient.SendMessage(update.Message.Chat, $"Задача \"{taskToRemove.Name}\" удалена.");
+        await toDoService.Delete(taskToRemove.Id, ct);
+        await botClient.SendMessage(update.Message.Chat, $"Задача \"{taskToRemove.Name}\" удалена.", ct);
     }
 
-    private void CompleteTask(ITelegramBotClient botClient, Update update, string userInputTaskToMarkComplete)
+    private async Task CompleteTask(ITelegramBotClient botClient, Update update, string userInputTaskToMarkComplete,
+        CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (userService.GetUser(update.Message.From.Id) == null)
+        if (await userService.GetUser(update.Message.From.Id, ct) == null)
         {
-            botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
+            await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован", ct);
             return;
         }
 
-        var user = userService.GetUser(update.Message.From.Id);
-        var taskList = toDoService.GetActiveByUserId(user!.UserId);
+        var user = await userService.GetUser(update.Message.From.Id, ct);
+        var itemList = await toDoService.GetActiveByUserId(user!.UserId, ct);
 
-        if (taskList.Count == 0)
+        if (itemList.Count == 0)
         {
-            botClient.SendMessage(update.Message.Chat,
-                "Ваш список задач пуст\nНет задач чтоб пометить их как выполненные");
+            await botClient.SendMessage(update.Message.Chat,
+                "Ваш список задач пуст\nНет задач чтоб пометить их как выполненные", ct);
             return;
         }
 
-        foreach (var task in taskList.Where(x => x.Id == Guid.Parse(userInputTaskToMarkComplete)))
+        foreach (var item in itemList.Where(x => x.Id == Guid.Parse(userInputTaskToMarkComplete)))
         {
-            toDoService.MarkCompleted(task.Id);
-            botClient.SendMessage(update.Message.Chat, $"Задача \"{task.Name}\" помечена исполненной.");
+            await toDoService.MarkCompleted(item.Id, ct);
+            await botClient.SendMessage(update.Message.Chat, $"Задача \"{item.Name}\" помечена исполненной.", ct);
         }
     }
 
-    private void ShowAllTasks(ITelegramBotClient botClient, Update update)
+    private async Task ShowAllTasks(ITelegramBotClient botClient, Update update, CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (userService.GetUser(update.Message.From.Id) == null)
+        if (await userService.GetUser(update.Message.From.Id, ct) == null)
         {
-            botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
+            await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован", ct);
             return;
         }
 
-        var user = userService.GetUser(update.Message.From.Id);
-        var taskList = toDoService.GetAllByUserId(user!.UserId);
+        var user = await userService.GetUser(update.Message.From.Id, ct);
+        var itemList = await toDoService.GetAllByUserId(user!.UserId, ct);
 
-        botClient.SendMessage(update.Message.Chat, "Ваш список задач:");
-        if (taskList.Count == 0) botClient.SendMessage(update.Message.Chat, "пуст");
+        await botClient.SendMessage(update.Message.Chat, "Ваш список задач:", ct);
+        if (itemList.Count == 0) await botClient.SendMessage(update.Message.Chat, "пуст", ct);
         else
         {
             var index = 1;
-            foreach (var task in taskList)
+            foreach (var item in itemList)
             {
-                botClient.SendMessage(update.Message.Chat,
-                    $"({task.State}) {index++}. {task.Name} - {task.CreatedAt} - {task.Id}");
+                await botClient.SendMessage(update.Message.Chat,
+                    $"({item.State}) {index++}. {item.Name} - {item.CreatedAt} - {item.Id}", ct);
             }
         }
     }
 
-    private void Report(ITelegramBotClient botClient, Update update, IToDoReportService toDoReport)
+    private async Task Report(ITelegramBotClient botClient, Update update, IToDoReportService toDoReport,
+        CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (userService.GetUser(update.Message.From.Id) == null)
+        if (await userService.GetUser(update.Message.From.Id, ct) == null)
         {
-            botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
+            await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован", ct);
             return;
         }
 
-        var tuple = toDoReport.GetUserStats(userService.GetUser(update.Message.From.Id)!.UserId);
-        botClient.SendMessage(update.Message.Chat,
-            $"Статистика по задачам на {tuple.generatedAt}. Всего: {tuple.total}; Завершенных: {tuple.completed}; Активных: {tuple.active};");
+        var user = await userService.GetUser(update.Message.From.Id, ct);
+        var tuple = await toDoReport.GetUserStats(user!.UserId, ct);
+        await botClient.SendMessage(update.Message.Chat,
+            $"Статистика по задачам на {tuple.generatedAt}. Всего: {tuple.total}; Завершенных: {tuple.completed}; Активных: {tuple.active};",
+            ct);
     }
-    
-    private void Find(ITelegramBotClient botClient, Update update, string taskStartsWithString)
+
+    private async Task Find(ITelegramBotClient botClient, Update update, string taskStartsWithString, CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (userService.GetUser(update.Message.From.Id) == null)
+        if (await userService.GetUser(update.Message.From.Id, ct) == null)
         {
-            botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован");
+            await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован", ct);
             return;
         }
-        
+
         taskStartsWithString = Program.ValidateString(taskStartsWithString);
 
-        var user = userService.GetUser(update.Message.From.Id);
-        var taskList = toDoService.Find(user!, taskStartsWithString);
+        var user = await userService.GetUser(update.Message.From.Id, ct);
+        var itemList = await toDoService.Find(user!, taskStartsWithString, ct);
 
-        botClient.SendMessage(update.Message.Chat, "Список найденных задач:");
-        if (taskList.Count == 0) botClient.SendMessage(update.Message.Chat, "пуст");
+        await botClient.SendMessage(update.Message.Chat, "Список найденных задач:", ct);
+        if (itemList.Count == 0) await botClient.SendMessage(update.Message.Chat, "пуст", ct);
         else
         {
             var index = 1;
-            foreach (var task in taskList)
+            foreach (var item in itemList)
             {
-                botClient.SendMessage(update.Message.Chat,
-                    $"({task.State}) {index++}. {task.Name} - {task.CreatedAt} - {task.Id}");
+                await botClient.SendMessage(update.Message.Chat,
+                    $"({item.State}) {index++}. {item.Name} - {item.CreatedAt} - {item.Id}", ct);
             }
         }
     }

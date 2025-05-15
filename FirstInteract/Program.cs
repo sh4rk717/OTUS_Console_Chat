@@ -3,7 +3,6 @@ using FirstInteract.Core.Services;
 using FirstInteract.Infrastructure.DataAccess;
 using FirstInteract.TelegramBot;
 using Otus.ToDoList.ConsoleBot;
-// using Otus.ToDoList.ConsoleBot.Types;
 
 namespace FirstInteract;
 
@@ -14,15 +13,21 @@ internal static class Program
 
     public static void Main()
     {
+        IUserRepository userRepository = new InMemoryUserRepository();
+        IToDoRepository toDoRepository = new InMemoryToDoRepository();
+        IToDoReportService toDoReportService = new ToDoReportService(toDoRepository);
+        IUserService userService = new UserService(userRepository);
+        IToDoService toDoService = new ToDoService(toDoRepository);
+        var handler = new UpdateHandler(userService, toDoService, toDoReportService);
+
         try
         {
-            IUserRepository userRepository = new InMemoryUserRepository();
-            IToDoRepository toDoRepository = new InMemoryToDoRepository();
-            IToDoReportService toDoReportService = new ToDoReportService(toDoRepository);
-            IUserService userService = new UserService(userRepository);
-            IToDoService toDoService = new ToDoService(toDoRepository);
-            var handler = new UpdateHandler(userService, toDoService, toDoReportService);
             var botClient = new ConsoleBotClient();
+            using var cts = new CancellationTokenSource();
+            
+            // подписка на события
+            handler.OnHandleUpdateStarted += DisplayMessageStart;
+            handler.OnHandleUpdateCompleted += DisplayMessageStop;
 
             const int lowerTasksCount = 1;
             const int upperTasksCount = 100;
@@ -34,11 +39,9 @@ internal static class Program
 
             Console.Write("Введите максимально допустимую длину задачи: ");
             MaxTaskLength = ParseAndValidateInt(Console.ReadLine(), lowerTaskLength, upperTaskLength);
-
-
-            // ShowMenu(botClient);
+            
             while (true)
-                botClient.StartReceiving(handler);
+                botClient.StartReceiving(handler, cts.Token);
         }
         catch (Exception e)
         {
@@ -51,6 +54,12 @@ internal static class Program
             Console.ResetColor();
             Console.WriteLine("Press any key to continue...");
             Console.ReadKey();
+        }
+        finally
+        {
+            // отписка от событий
+            handler.OnHandleUpdateStarted -= DisplayMessageStart;
+            handler.OnHandleUpdateCompleted -= DisplayMessageStop;
         }
     }
 
@@ -68,5 +77,15 @@ internal static class Program
         if (string.IsNullOrWhiteSpace(str)) throw new ArgumentException("Некорректная строка");
 
         return str;
+    }
+
+    private static void DisplayMessageStart(string message)
+    {
+        Console.WriteLine($"Началась обработка сообщения '{message}' в {DateTime.Now:O}");
+    }
+
+    private static void DisplayMessageStop(string message)
+    {
+        Console.WriteLine($"Закончилась обработка сообщения '{message}' в {DateTime.Now:O}");
     }
 }
