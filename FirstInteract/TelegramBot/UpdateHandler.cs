@@ -63,6 +63,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
 
             // асинхронно выводим Reply-клавиатуру
             await SendReplyKeyboard(botClient, update, ct);
+            // асинхронно выводим кнопку menu с командами
             await ShowNativeCommands(botClient, ct);
         }
         catch (ArgumentException e)
