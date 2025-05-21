@@ -5,7 +5,6 @@ using FirstInteract.TelegramBot;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types.Enums;
-using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FirstInteract;
 
@@ -53,13 +52,6 @@ internal static class Program
 
             var me = await botClient.GetMe(cancellationToken: cts.Token);
             Console.WriteLine($"{me.FirstName} запущен!");
-            
-            
-            
-           
-            
-            
-            
 
             Console.WriteLine("Нажмите клавишу A для выхода");
             while (true)

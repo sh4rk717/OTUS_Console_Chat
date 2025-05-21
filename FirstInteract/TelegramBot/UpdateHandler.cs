@@ -12,7 +12,7 @@ namespace FirstInteract.TelegramBot;
 public class UpdateHandler(IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
     : IUpdateHandler
 {
-    public delegate void MessageEventHandler(string? message);
+    public delegate void MessageEventHandler(string message);
 
     public event MessageEventHandler? OnHandleUpdateStarted;
     public event MessageEventHandler? OnHandleUpdateCompleted;
@@ -21,9 +21,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
     {
         try
         {
-            await SendReplyKeyboard(botClient, update, ct);
-
-            OnHandleUpdateStarted?.Invoke(update.Message!.Text);
+            OnHandleUpdateStarted?.Invoke(update.Message!.Text!);
 
             var command = update.Message!.Text!.Split(" ")[0]; //до 1-ого пробела
             var restArgs = string.Join(" ", update.Message.Text.Split(" ")[1..]); //все остальное после 1-ого пробела
@@ -62,6 +60,10 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
             }
 
             OnHandleUpdateCompleted?.Invoke(update.Message.Text);
+
+            // асинхронно выводим Reply-клавиатуру
+            await SendReplyKeyboard(botClient, update, ct);
+            await ShowNativeCommands(botClient, ct);
         }
         catch (ArgumentException e)
         {
@@ -104,7 +106,6 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
     {
         await userService.RegisterUser(update.Message!.From!.Id, update.Message.From.Username!, ct);
         await botClient.SendMessage(update.Message.Chat, "Пользователь зарегистрирован", cancellationToken: ct);
-        await SendReplyKeyboard(botClient, update, ct);
     }
 
     private static async Task RunHelp(ITelegramBotClient botClient, Update update, CancellationToken ct)
@@ -179,7 +180,8 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
             foreach (var item in activeTasks.Where(t => t.State == ToDoItem.ToDoItemState.Active))
             {
                 await botClient.SendMessage(update.Message.Chat,
-                    $"{index++}. {item.Name} - {item.CreatedAt} - <code>{item.Id}</code>", cancellationToken: ct, parseMode: ParseMode.Html);
+                    $"{index++}. {item.Name} - {item.CreatedAt} - <code>{item.Id}</code>", cancellationToken: ct,
+                    parseMode: ParseMode.Html);
             }
         }
     }
@@ -280,7 +282,8 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
             foreach (var item in itemList)
             {
                 await botClient.SendMessage(update.Message.Chat,
-                    $"({item.State}) {index++}. {item.Name} - {item.CreatedAt} - <code>{item.Id}</code>", cancellationToken: ct, parseMode: ParseMode.Html);
+                    $"({item.State}) {index++}. {item.Name} - {item.CreatedAt} - <code>{item.Id}</code>",
+                    cancellationToken: ct, parseMode: ParseMode.Html);
             }
         }
     }
@@ -332,11 +335,10 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         }
     }
 
-
     private async Task SendReplyKeyboard(ITelegramBotClient botClient, Update update,
         CancellationToken ct = default)
     {
-        //если пользователь не зарегистрирован, то ничего не происходит при вызове
+        //если пользователь не зарегистрирован, то просим зарегистрироваться
         if (await userService.GetUser(update.Message!.From!.Id, ct) == null)
         {
             var replyMarkup = new ReplyKeyboardMarkup(true).AddNewRow("/start");
@@ -349,5 +351,20 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
             await botClient.SendMessage(update.Message.Chat, "Choose an option:", replyMarkup: replyMarkup,
                 cancellationToken: ct);
         }
+    }
+
+    private static async Task ShowNativeCommands(ITelegramBotClient botClient, CancellationToken ct = default)
+    {
+        var commands = new List<BotCommand>
+        {
+            new() { Command = "start", Description = "Запустить бота" },
+            new() { Command = "help", Description = "Помощь" },
+            new() { Command = "info", Description = "Информация о боте" },
+            new() { Command = "showtasks", Description = "Показать активные задачи" },
+            new() { Command = "showalltasks", Description = "Показать все задачи" },
+            new() { Command = "report", Description = "Отчет по задачам" }
+        };
+
+        await botClient.SetMyCommands(commands: commands, cancellationToken: ct);
     }
 }
