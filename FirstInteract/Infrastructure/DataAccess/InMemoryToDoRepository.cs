@@ -1,6 +1,5 @@
 ﻿using FirstInteract.Core.DataAccess;
 using FirstInteract.Core.Entities;
-using FirstInteract.Core.Exceptions;
 
 namespace FirstInteract.Infrastructure.DataAccess;
 

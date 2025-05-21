@@ -2,7 +2,9 @@
 using FirstInteract.Core.Services;
 using FirstInteract.Infrastructure.DataAccess;
 using FirstInteract.TelegramBot;
-using Otus.ToDoList.ConsoleBot;
+using Telegram.Bot;
+using Telegram.Bot.Polling;
+using Telegram.Bot.Types.Enums;
 
 namespace FirstInteract;
 
@@ -11,7 +13,7 @@ internal static class Program
     public static int MaxTaskLength;
     public static int MaxTasks;
 
-    public static void Main()
+    public static async Task Main()
     {
         IUserRepository userRepository = new InMemoryUserRepository();
         IToDoRepository toDoRepository = new InMemoryToDoRepository();
@@ -22,9 +24,15 @@ internal static class Program
 
         try
         {
-            var botClient = new ConsoleBotClient();
+            var token = Environment.GetEnvironmentVariable("Telegram_TOKEN", EnvironmentVariableTarget.User);
+            var botClient = new TelegramBotClient(token!);
             using var cts = new CancellationTokenSource();
-            
+            var receiverOptions = new ReceiverOptions
+            {
+                AllowedUpdates = [UpdateType.Message],
+                DropPendingUpdates = true
+            };
+
             // подписка на события
             handler.OnHandleUpdateStarted += DisplayMessageStart;
             handler.OnHandleUpdateCompleted += DisplayMessageStop;
@@ -39,9 +47,25 @@ internal static class Program
 
             Console.Write("Введите максимально допустимую длину задачи: ");
             MaxTaskLength = ParseAndValidateInt(Console.ReadLine(), lowerTaskLength, upperTaskLength);
-            
+
+            botClient.StartReceiving(handler, receiverOptions, cancellationToken: cts.Token);
+
+            var me = await botClient.GetMe(cancellationToken: cts.Token);
+            Console.WriteLine($"{me.FirstName} запущен!");
+
+            Console.WriteLine("Нажмите клавишу A для выхода");
             while (true)
-                botClient.StartReceiving(handler, cts.Token);
+            {
+                var symbol = Console.ReadKey();
+                if (symbol.Key == ConsoleKey.A)
+                {
+                    await cts.CancelAsync();
+                    Console.WriteLine("\nBot stopped");
+                    break;
+                }
+
+                Console.WriteLine($"\n{me.Id} - {me.FirstName} - {me.LastName} - {me.Username}");
+            }
         }
         catch (Exception e)
         {
@@ -53,7 +77,6 @@ internal static class Program
                               $"e.InnerException = {e.InnerException}");
             Console.ResetColor();
             Console.WriteLine("Press any key to continue...");
-            Console.ReadKey();
         }
         finally
         {
