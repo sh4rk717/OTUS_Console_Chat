@@ -141,7 +141,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
     private async Task AddTask(ITelegramBotClient botClient, Update update, string name, CancellationToken ct)
     {
         var user = await userService.GetUser(update.Message!.From!.Id, ct);
-
+        
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
         if (user == null)
         {
@@ -154,8 +154,8 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         var itemList = await toDoService.GetActiveByUserId(user.UserId, ct);
         var newTaskCountNumber = itemList.Count;
         await botClient.SendMessage(update.Message.Chat,
-            $"Задача \"{newTask.Name}\" добавлена в список под номером {newTaskCountNumber}: Id = {newTask.Id}",
-            cancellationToken: ct);
+            $"Задача \"{newTask.Name}\" добавлена в список под номером {newTaskCountNumber}: Id = <code>{newTask.Id}</code>",
+            cancellationToken: ct, parseMode: ParseMode.Html);
     }
 
     private async Task ShowTasks(ITelegramBotClient botClient, Update update, CancellationToken ct)
@@ -172,16 +172,16 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         var activeTasks = await toDoService.GetActiveByUserId(user!.UserId, ct);
         var activeTaskCount = activeTasks.Count;
 
-        await botClient.SendMessage(update.Message.Chat, "Ваш список задач:", cancellationToken: ct);
         if (activeTaskCount == 0)
-            await botClient.SendMessage(update.Message.Chat, "пуст", cancellationToken: ct);
+            await botClient.SendMessage(update.Message.Chat, "Ваш список задач пуст", cancellationToken: ct);
         else
         {
+            await botClient.SendMessage(update.Message.Chat, "Ваш список задач:", cancellationToken: ct);
             var index = 1;
             foreach (var item in activeTasks.Where(t => t.State == ToDoItem.ToDoItemState.Active))
             {
                 await botClient.SendMessage(update.Message.Chat,
-                    $"{index++}. {item.Name} - {item.CreatedAt} - <code>{item.Id}</code>", cancellationToken: ct,
+                    $"{index++}. {item.Name} - {item.CreatedAt}\n<code>{item.Id}</code>", cancellationToken: ct,
                     parseMode: ParseMode.Html);
             }
         }
@@ -275,15 +275,17 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         var user = await userService.GetUser(update.Message.From.Id, ct);
         var itemList = await toDoService.GetAllByUserId(user!.UserId, ct);
 
-        await botClient.SendMessage(update.Message.Chat, "Ваш список задач:", cancellationToken: ct);
-        if (itemList.Count == 0) await botClient.SendMessage(update.Message.Chat, "пуст", cancellationToken: ct);
+        
+        if (itemList.Count == 0)
+            await botClient.SendMessage(update.Message.Chat, "Ваш список задач пуст", cancellationToken: ct);
         else
         {
             var index = 1;
+            await botClient.SendMessage(update.Message.Chat, "Ваш список задач:", cancellationToken: ct);
             foreach (var item in itemList)
             {
                 await botClient.SendMessage(update.Message.Chat,
-                    $"({item.State}) {index++}. {item.Name} - {item.CreatedAt} - <code>{item.Id}</code>",
+                    $"({item.State}) {index++}. {item.Name} - {item.CreatedAt}\n<code>{item.Id}</code>",
                     cancellationToken: ct, parseMode: ParseMode.Html);
             }
         }
@@ -301,9 +303,9 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         }
 
         var user = await userService.GetUser(update.Message.From.Id, ct);
-        var tuple = await toDoReport.GetUserStats(user!.UserId, ct);
+        var (total, completed, active, generatedAt) = await toDoReport.GetUserStats(user!.UserId, ct);
         await botClient.SendMessage(update.Message.Chat,
-            $"Статистика по задачам на {tuple.generatedAt}. Всего: {tuple.total}; Завершенных: {tuple.completed}; Активных: {tuple.active};",
+            $"Статистика по задачам на {generatedAt}. Всего: {total}; Завершенных: {completed}; Активных: {active};",
             cancellationToken: ct);
     }
 
