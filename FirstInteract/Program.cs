@@ -15,17 +15,20 @@ internal static class Program
 
     public static async Task Main()
     {
-        IUserRepository userRepository = new InMemoryUserRepository();
-        IToDoRepository toDoRepository = new InMemoryToDoRepository();
-        IToDoReportService toDoReportService = new ToDoReportService(toDoRepository);
-        IUserService userService = new UserService(userRepository);
-        IToDoService toDoService = new ToDoService(toDoRepository);
+        IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..","..", "..", "users"));
+        IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..","..", "..", "items"));
+        IToDoReportService toDoReportService = new ToDoReportService(toDoFileRepository);
+        IUserService userService = new UserService(userFileRepository);
+        IToDoService toDoService = new ToDoService(toDoFileRepository);
         var handler = new UpdateHandler(userService, toDoService, toDoReportService);
 
         try
         {
             var token = Environment.GetEnvironmentVariable("Telegram_TOKEN", EnvironmentVariableTarget.User);
-            var botClient = new TelegramBotClient(token!);
+            if (string.IsNullOrEmpty(token))
+                throw new InvalidOperationException("Telegram bot token is not configured. Please set the Telegram_TOKEN environment variable.");
+
+            var botClient = new TelegramBotClient(token);
             using var cts = new CancellationTokenSource();
             var receiverOptions = new ReceiverOptions
             {
@@ -54,7 +57,7 @@ internal static class Program
             Console.WriteLine($"{me.FirstName} запущен!");
 
             Console.WriteLine("Нажмите клавишу A для выхода");
-            while (true)
+            while (!cts.Token.IsCancellationRequested)
             {
                 var symbol = Console.ReadKey();
                 if (symbol.Key == ConsoleKey.A)
