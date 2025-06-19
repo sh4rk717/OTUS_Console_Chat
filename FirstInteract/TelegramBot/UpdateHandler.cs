@@ -1,6 +1,7 @@
 ﻿using FirstInteract.Core.Entities;
 using FirstInteract.Core.Exceptions;
 using FirstInteract.Core.Services;
+using FirstInteract.TelegramBot.Scenarios;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
@@ -9,7 +10,13 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FirstInteract.TelegramBot;
 
-public class UpdateHandler(IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
+public class UpdateHandler(
+    ITelegramBotClient botClient,
+    IUserService userService,
+    IToDoService toDoService,
+    IToDoReportService toDoReportService,
+    IEnumerable<IScenario> scenarios,
+    IScenarioContextRepository contextRepository)
     : IUpdateHandler
 {
     public delegate void MessageEventHandler(string message);
@@ -17,54 +24,81 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
     public event MessageEventHandler? OnHandleUpdateStarted;
     public event MessageEventHandler? OnHandleUpdateCompleted;
 
-    public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken ct)
+// В метод HandleUpdateAsync добавить получение ScenarioContext через IScenarioContextRepository перед обработкой команд.
+//     ЕСЛИ ScenarioContext найден, ТО вызвать метод ProcessScenario и завершить обработку
+    public async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
     {
         try
         {
-            OnHandleUpdateStarted?.Invoke(update.Message!.Text!);
+            if (update.Message!.Text == "/cancel")
+            {
+                await contextRepository.ResetContext(update.Message.From!.Id, ct);
+            }
+
+            var scenarioContext = await contextRepository.GetContext(update.Message!.From!.Id, ct);
+            if (scenarioContext is not null)
+            {
+                await ProcessScenario(scenarioContext, update, ct);
+                // асинхронно выводим Reply-клавиатуру с основными командами
+                await SendReplyKeyboard(update, null, ct);
+                return;
+            }
 
             var command = update.Message!.Text!.Split(" ")[0]; //до 1-ого пробела
+
+
+            OnHandleUpdateStarted?.Invoke(update.Message!.Text!);
+
             var restArgs = string.Join(" ", update.Message.Text.Split(" ")[1..]); //все остальное после 1-ого пробела
             switch (command)
             {
                 case "/start":
-                    await RunStart(botClient, update, ct);
+                    await RunStart(update, ct);
                     break;
                 case "/help":
-                    await RunHelp(botClient, update, ct);
+                    await RunHelp(update, ct);
                     break;
                 case "/info":
-                    await RunInfo(botClient, update, ct);
+                    await RunInfo(update, ct);
                     break;
                 case "/addtask":
-                    await AddTask(botClient, update, restArgs, ct);
+                    await AddTask(update, ct);
+                    scenarioContext = new ScenarioContext(ScenarioType.AddTask) { UserId = update.Message!.From!.Id };
+                    // await SendReplyKeyboard(update, scenarioContext, ct);
+                    await ProcessScenario(scenarioContext, update, ct);
                     break;
                 case "/showtasks":
-                    await ShowTasks(botClient, update, ct);
+                    await ShowTasks(update, ct);
                     break;
                 case "/removetask":
-                    await RemoveTask(botClient, update, restArgs, ct);
+                    await RemoveTask(update, restArgs, ct);
                     break;
                 case "/completetask":
-                    await CompleteTask(botClient, update, restArgs, ct);
+                    await CompleteTask(update, restArgs, ct);
                     break;
                 case "/showalltasks":
-                    await ShowAllTasks(botClient, update, ct);
+                    await ShowAllTasks(update, ct);
                     break;
                 case "/report":
-                    await Report(botClient, update, toDoReportService, ct);
+                    await Report(update, toDoReportService, ct);
                     break;
                 case "/find":
-                    await Find(botClient, update, restArgs, ct);
+                    await Find(update, restArgs, ct);
                     break;
+                // case "/cancel":
+                //     await Cancel(update, ct);
+                //     break;
             }
+
 
             OnHandleUpdateCompleted?.Invoke(update.Message.Text);
 
-            // асинхронно выводим Reply-клавиатуру
-            await SendReplyKeyboard(botClient, update, ct);
+
+            // асинхронно выводим Reply-клавиатуру с основными командами
+            await SendReplyKeyboard(update, scenarioContext, ct);
+
             // асинхронно выводим кнопку menu с командами
-            await ShowNativeCommands(botClient, ct);
+            await ShowNativeCommands(ct);
         }
         catch (ArgumentException e)
         {
@@ -96,69 +130,66 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         }
     }
 
-    public Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, HandleErrorSource source,
+    public Task HandleErrorAsync(ITelegramBotClient bot, Exception exception, HandleErrorSource source,
         CancellationToken cancellationToken)
     {
         Console.WriteLine($"HandleError: {exception})");
         return Task.CompletedTask;
     }
 
-    private async Task RunStart(ITelegramBotClient botClient, Update update, CancellationToken ct)
+    private async Task RunStart(Update update, CancellationToken ct)
     {
         await userService.RegisterUser(update.Message!.From!.Id, update.Message.From.Username!, ct);
         await botClient.SendMessage(update.Message.Chat, "Пользователь зарегистрирован", cancellationToken: ct);
     }
 
-    private static async Task RunHelp(ITelegramBotClient botClient, Update update, CancellationToken ct)
+    private async Task RunHelp(Update update, CancellationToken ct)
     {
         await botClient.SendMessage(update.Message!.Chat,
             """
             Программа имитирует Telegram-чат
             Пользователю доступен набор команд...
-                /start        - регистрация пользователя
-                /help         - помощь
-                /info         - информация о программе
+            /start - регистрация пользователя
+            /help - помощь
+            /info - информация о программе
             Команды доступные после регистрации пользователя:
-                /addtask      - позволяет добавить задачу в список задач
-                /showtasks    - позволяет просмотреть текущий список активных задач
-                /removetask   - позволяет удалить задачу из списка задач по ее порядковому номеру
-                /completetask - позволяет пометить задачу как завершенную по ее GUID
-                /showalltasks - позволяет просмотреть список всех задач
-                /report       - отчет по задачам пользователя
-                /find         - поиск задач по началу их названия
+            /addtask - позволяет добавить задачу в список задач
+            /showtasks - позволяет просмотреть текущий список активных задач
+            /removetask - позволяет удалить задачу из списка задач по ее порядковому номеру
+            /completetask - позволяет пометить задачу как завершенную по ее GUID
+            /showalltasks - позволяет просмотреть список всех задач
+            /report - отчет по задачам пользователя
+            /find - поиск задач по началу их названия
             """, cancellationToken: ct);
     }
 
-    private static async Task RunInfo(ITelegramBotClient botClient, Update update, CancellationToken ct)
+    private async Task RunInfo(Update update, CancellationToken ct)
     {
         await botClient.SendMessage(update.Message!.Chat, """
-                                                          Program info: version 1.0b.
+                                                          Program info: version 1.0d.
                                                           Created: Feb 18, 2025
-                                                          Last updated: May 9, 2025
+                                                          Last updated: June 25, 2025
                                                           """, cancellationToken: ct);
     }
 
-    private async Task AddTask(ITelegramBotClient botClient, Update update, string name, CancellationToken ct)
+    private async Task AddTask(Update update, CancellationToken ct)
     {
         var user = await userService.GetUser(update.Message!.From!.Id, ct);
-        
+
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
         if (user == null)
         {
             await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован",
                 cancellationToken: ct);
-            return;
         }
 
-        var newTask = await toDoService.Add(user, name, ct);
-        var itemList = await toDoService.GetActiveByUserId(user.UserId, ct);
-        var newTaskCountNumber = itemList.Count;
-        await botClient.SendMessage(update.Message.Chat,
-            $"Задача \"{newTask.Name}\" добавлена в список под номером {newTaskCountNumber}: Id = <code>{newTask.Id}</code>",
-            cancellationToken: ct, parseMode: ParseMode.Html);
+        // var scenarioContext = new ScenarioContext(ScenarioType.AddTask) { UserId = update.Message!.From!.Id };
+        // await SendReplyKeyboard(update, scenarioContext, ct);
+
+        // await ProcessScenario(scenarioContext, update, ct);
     }
 
-    private async Task ShowTasks(ITelegramBotClient botClient, Update update, CancellationToken ct)
+    private async Task ShowTasks(Update update, CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
         if (await userService.GetUser(update.Message!.From!.Id, ct) == null)
@@ -187,7 +218,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         }
     }
 
-    private async Task RemoveTask(ITelegramBotClient botClient, Update update, string userInputTaskToRemove,
+    private async Task RemoveTask(Update update, string userInputTaskToRemove,
         CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
@@ -233,7 +264,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
             cancellationToken: ct);
     }
 
-    private async Task CompleteTask(ITelegramBotClient botClient, Update update, string userInputTaskToMarkComplete,
+    private async Task CompleteTask(Update update, string userInputTaskToMarkComplete,
         CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
@@ -250,7 +281,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         if (itemList.Count == 0)
         {
             await botClient.SendMessage(update.Message.Chat,
-                "Ваш список задач пуст\nНет задач чтоб пометить их как выполненные", cancellationToken: ct);
+                "Ваш список задач пуст\n��ет задач чтоб пометить их как выполненные", cancellationToken: ct);
             return;
         }
 
@@ -262,7 +293,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         }
     }
 
-    private async Task ShowAllTasks(ITelegramBotClient botClient, Update update, CancellationToken ct)
+    private async Task ShowAllTasks(Update update, CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
         if (await userService.GetUser(update.Message!.From!.Id, ct) == null)
@@ -275,7 +306,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         var user = await userService.GetUser(update.Message.From.Id, ct);
         var itemList = await toDoService.GetAllByUserId(user!.UserId, ct);
 
-        
+
         if (itemList.Count == 0)
             await botClient.SendMessage(update.Message.Chat, "Ваш список задач пуст", cancellationToken: ct);
         else
@@ -291,7 +322,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         }
     }
 
-    private async Task Report(ITelegramBotClient botClient, Update update, IToDoReportService toDoReport,
+    private async Task Report(Update update, IToDoReportService toDoReport,
         CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
@@ -309,7 +340,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
             cancellationToken: ct);
     }
 
-    private async Task Find(ITelegramBotClient botClient, Update update, string taskStartsWithString,
+    private async Task Find(Update update, string taskStartsWithString,
         CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
@@ -338,7 +369,7 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
         }
     }
 
-    private async Task SendReplyKeyboard(ITelegramBotClient botClient, Update update,
+    private async Task SendReplyKeyboard(Update update, ScenarioContext? scenarioContext,
         CancellationToken ct = default)
     {
         //если пользователь не зарегистрирован, то просим зарегистрироваться
@@ -348,26 +379,64 @@ public class UpdateHandler(IUserService userService, IToDoService toDoService, I
             await botClient.SendMessage(update.Message.Chat, "Please, register", replyMarkup: replyMarkup,
                 cancellationToken: ct);
         }
+        else if (scenarioContext is { CurrentScenario: ScenarioType.AddTask } && scenarioContext.CurrentStep == "Name")
+        {
+            // Если пользователь в сценарии добавления задачи, показываем только /cancel
+            var replyMarkup = new ReplyKeyboardMarkup(new[] { new KeyboardButton("/cancel") })
+            {
+                ResizeKeyboard = true,
+                OneTimeKeyboard = false
+            };
+            await botClient.SendMessage(update.Message.Chat, "Для отмены сценария нажмите /cancel",
+                replyMarkup: replyMarkup, cancellationToken: ct);
+        }
         else
         {
-            var replyMarkup = new ReplyKeyboardMarkup(true).AddNewRow("/showalltasks", "/showtasks", "/report");
-            await botClient.SendMessage(update.Message.Chat, "Choose an option:", replyMarkup: replyMarkup,
+            var replyMarkup = new ReplyKeyboardMarkup(true)
+                .AddNewRow("/showalltasks", "/showtasks")
+                .AddNewRow("/addtask", "/report");
+            await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: replyMarkup,
                 cancellationToken: ct);
         }
     }
 
-    private static async Task ShowNativeCommands(ITelegramBotClient botClient, CancellationToken ct = default)
+    private async Task ShowNativeCommands(CancellationToken ct = default)
     {
         var commands = new List<BotCommand>
         {
             new() { Command = "start", Description = "Запустить бота" },
             new() { Command = "help", Description = "Помощь" },
             new() { Command = "info", Description = "Информация о боте" },
+            new() { Command = "addtask", Description = "Добавить задачу" },
             new() { Command = "showtasks", Description = "Показать активные задачи" },
             new() { Command = "showalltasks", Description = "Показать все задачи" },
             new() { Command = "report", Description = "Отчет по задачам" }
         };
 
         await botClient.SetMyCommands(commands: commands, cancellationToken: ct);
+    }
+
+    private IScenario GetScenario(ScenarioType scenarioType)
+    {
+        foreach (var scenario in scenarios)
+        {
+            if (scenario.CanHandle(scenarioType))
+            {
+                return scenario;
+            }
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(scenarioType));
+    }
+
+    private async Task ProcessScenario(ScenarioContext? context, Update update, CancellationToken ct)
+    {
+        var scenario = GetScenario(context!.CurrentScenario);
+        var userId = context.UserId;
+        var result = await scenario.HandleMessageAsync(botClient, context, update, ct);
+        if (result == ScenarioResult.Completed)
+            await contextRepository.ResetContext(userId, ct);
+        else
+            await contextRepository.SetContext(userId, context, ct)!;
     }
 }

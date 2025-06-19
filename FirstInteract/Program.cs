@@ -2,6 +2,7 @@
 using FirstInteract.Core.Services;
 using FirstInteract.Infrastructure.DataAccess;
 using FirstInteract.TelegramBot;
+using FirstInteract.TelegramBot.Scenarios;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types.Enums;
@@ -15,20 +16,25 @@ internal static class Program
 
     public static async Task Main()
     {
-        IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..","..", "..", "users"));
-        IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..","..", "..", "items"));
-        IToDoReportService toDoReportService = new ToDoReportService(toDoFileRepository);
+        IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..", "..", "..", "users"));
+        IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..", "..", "..", "items"));
         IUserService userService = new UserService(userFileRepository);
         IToDoService toDoService = new ToDoService(toDoFileRepository);
-        var handler = new UpdateHandler(userService, toDoService, toDoReportService);
+        IToDoReportService toDoReportService = new ToDoReportService(toDoFileRepository);
+        IEnumerable<IScenario> scenarios = [new AddTaskScenario(userService, toDoService)];
+        IScenarioContextRepository contextRepository = new InMemoryScenarioContextRepository();
 
+
+        var token = Environment.GetEnvironmentVariable("Telegram_TOKEN");
+        if (string.IsNullOrEmpty(token))
+            throw new InvalidOperationException(
+                "Telegram bot token is not configured. Please set the Telegram_TOKEN environment variable.");
+
+        var botClient = new TelegramBotClient(token);
+        var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios,
+            contextRepository);
         try
         {
-            var token = Environment.GetEnvironmentVariable("Telegram_TOKEN", EnvironmentVariableTarget.User);
-            if (string.IsNullOrEmpty(token))
-                throw new InvalidOperationException("Telegram bot token is not configured. Please set the Telegram_TOKEN environment variable.");
-
-            var botClient = new TelegramBotClient(token);
             using var cts = new CancellationTokenSource();
             var receiverOptions = new ReceiverOptions
             {
