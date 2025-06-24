@@ -40,7 +40,7 @@ public class UpdateHandler(
             {
                 await ProcessScenario(scenarioContext, update, ct);
                 // асинхронно выводим Reply-клавиатуру с основными командами
-                await SendReplyKeyboard(update, null, ct);
+                await SendReplyKeyboard(update, scenarioContext, ct);
                 return;
             }
 
@@ -62,10 +62,7 @@ public class UpdateHandler(
                     await RunInfo(update, ct);
                     break;
                 case "/addtask":
-                    await AddTask(update, ct);
-                    scenarioContext = new ScenarioContext(ScenarioType.AddTask) { UserId = update.Message!.From!.Id };
-                    // await SendReplyKeyboard(update, scenarioContext, ct);
-                    await ProcessScenario(scenarioContext, update, ct);
+                    scenarioContext = await AddTask(update, ct);
                     break;
                 case "/showtasks":
                     await ShowTasks(update, ct);
@@ -90,15 +87,13 @@ public class UpdateHandler(
                 //     break;
             }
 
-
-            OnHandleUpdateCompleted?.Invoke(update.Message.Text);
-
-
             // асинхронно выводим Reply-клавиатуру с основными командами
-            await SendReplyKeyboard(update, scenarioContext, ct);
+             await SendReplyKeyboard(update, scenarioContext, ct);
 
             // асинхронно выводим кнопку menu с командами
             await ShowNativeCommands(ct);
+
+            OnHandleUpdateCompleted?.Invoke(update.Message.Text);
         }
         catch (ArgumentException e)
         {
@@ -147,7 +142,7 @@ public class UpdateHandler(
     {
         await botClient.SendMessage(update.Message!.Chat,
             """
-            Программа имитирует Telegram-чат
+            "To Do" Telegram-бот
             Пользователю доступен набор команд...
             /start - регистрация пользователя
             /help - помощь
@@ -172,7 +167,7 @@ public class UpdateHandler(
                                                           """, cancellationToken: ct);
     }
 
-    private async Task AddTask(Update update, CancellationToken ct)
+    private async Task<ScenarioContext?> AddTask(Update update, CancellationToken ct)
     {
         var user = await userService.GetUser(update.Message!.From!.Id, ct);
 
@@ -181,12 +176,12 @@ public class UpdateHandler(
         {
             await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован",
                 cancellationToken: ct);
+            return null;
         }
-
-        // var scenarioContext = new ScenarioContext(ScenarioType.AddTask) { UserId = update.Message!.From!.Id };
-        // await SendReplyKeyboard(update, scenarioContext, ct);
-
-        // await ProcessScenario(scenarioContext, update, ct);
+        
+        var scenarioContext = new ScenarioContext(ScenarioType.AddTask) { UserId = update.Message!.From!.Id };
+        await ProcessScenario(scenarioContext, update, ct);
+        return scenarioContext;
     }
 
     private async Task ShowTasks(Update update, CancellationToken ct)
@@ -379,7 +374,7 @@ public class UpdateHandler(
             await botClient.SendMessage(update.Message.Chat, "Please, register", replyMarkup: replyMarkup,
                 cancellationToken: ct);
         }
-        else if (scenarioContext is { CurrentScenario: ScenarioType.AddTask } && scenarioContext.CurrentStep == "Name")
+        else if (scenarioContext is { CurrentScenario: ScenarioType.AddTask, CurrentStep: "Name" or "Deadline"})
         {
             // Если пользователь в сценарии добавления задачи, показываем только /cancel
             var replyMarkup = new ReplyKeyboardMarkup(new[] { new KeyboardButton("/cancel") })

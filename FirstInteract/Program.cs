@@ -24,8 +24,13 @@ internal static class Program
         IEnumerable<IScenario> scenarios = [new AddTaskScenario(userService, toDoService)];
         IScenarioContextRepository contextRepository = new InMemoryScenarioContextRepository();
 
-
+        //Linux env. var
         var token = Environment.GetEnvironmentVariable("Telegram_TOKEN");
+        
+        if (string.IsNullOrEmpty(token))
+            //Windows env. var
+            token = Environment.GetEnvironmentVariable("Telegram_TOKEN", EnvironmentVariableTarget.User);
+        
         if (string.IsNullOrEmpty(token))
             throw new InvalidOperationException(
                 "Telegram bot token is not configured. Please set the Telegram_TOKEN environment variable.");
