@@ -19,9 +19,9 @@ public class ToDoService(IToDoRepository repository) : IToDoService
         return await repository.GetActiveByUserId(userId, ct);
     }
 
-    public async Task<ToDoItem> Add(ToDoUser user, string name, CancellationToken ct)
+    public async Task<ToDoItem> Add(ToDoUser user, string name, DateTime deadline, CancellationToken ct)
     {
-        var newTaskItem = new ToDoItem(name, user);
+        var newTaskItem = new ToDoItem(name, user, deadline);
         var newTask = Program.ValidateString(name);
 
         // проверка на кол-во задач
