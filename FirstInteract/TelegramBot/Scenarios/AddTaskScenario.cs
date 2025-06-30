@@ -7,9 +7,6 @@ namespace FirstInteract.TelegramBot.Scenarios;
 
 public class AddTaskScenario(IUserService userService, IToDoService toDoService) : IScenario
 {
-    // private readonly IUserService _userService = userService;
-    // private readonly IToDoService _toDoService = toDoService;
-
     public bool CanHandle(ScenarioType scenario)
     {
         return scenario == ScenarioType.AddTask;
@@ -35,9 +32,7 @@ public class AddTaskScenario(IUserService userService, IToDoService toDoService)
             }
             case "Name":
             {
-                //var user = context.Data["ToDoUser"];
                 var taskName = message.Text?.Trim();
-                //await toDoService.Add(user, taskName!, ct);
                 await bot.SendMessage(chatId: message.Chat.Id,
                     text: $"Задайте deadline для задачи '{taskName}' в формате dd.MM.yyyy:", cancellationToken: ct);
                 context.CurrentStep = "Deadline";
@@ -49,8 +44,6 @@ public class AddTaskScenario(IUserService userService, IToDoService toDoService)
                 var user = (ToDoUser)context.Data["ToDoUser"];
                 var taskName = (string)context.Data["TaskName"];
                 var isDate = DateTime.TryParse(message.Text!.Trim(), out var taskDeadline);
-
-                //var taskDeadline = DateTime.TryParse()Parse(message.Text!.Trim());
 
                 if (!isDate)
                 {

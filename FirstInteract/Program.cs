@@ -1,4 +1,5 @@
-﻿using FirstInteract.Core.DataAccess;
+﻿using System.Text;
+using FirstInteract.Core.DataAccess;
 using FirstInteract.Core.Services;
 using FirstInteract.Infrastructure.DataAccess;
 using FirstInteract.TelegramBot;
@@ -16,6 +17,9 @@ internal static class Program
 
     public static async Task Main()
     {
+        Console.InputEncoding = Encoding.Default;
+        Console.OutputEncoding = Encoding.Default;
+        
         IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..", "..", "..", "users"));
         IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..", "..", "..", "items"));
         IUserService userService = new UserService(userFileRepository);

@@ -8,7 +8,7 @@ public class ScenarioContext
     /// Id пользователя в Telegram
     /// </summary>
     public long UserId { get; set; } 
-    public ScenarioType CurrentScenario{ get; set; } 
+    public ScenarioType CurrentScenario{ get; } 
     
     /// <summary>
     /// Текущий шаг сценария
@@ -20,8 +20,9 @@ public class ScenarioContext
     /// </summary>
     public Dictionary<string, object> Data{ get; set; } 
 
-    public ScenarioContext(ScenarioType scenario)
+    public ScenarioContext(long userId, ScenarioType scenario)
     {
+        UserId = userId;
         CurrentScenario = scenario;
         Data = new Dictionary<string, object>();
     }

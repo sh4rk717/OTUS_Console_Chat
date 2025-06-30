@@ -179,7 +179,7 @@ public class UpdateHandler(
             return null;
         }
         
-        var scenarioContext = new ScenarioContext(ScenarioType.AddTask) { UserId = update.Message!.From!.Id };
+        var scenarioContext = new ScenarioContext(update.Message!.From!.Id, ScenarioType.AddTask);
         await ProcessScenario(scenarioContext, update, ct);
         return scenarioContext;
     }
