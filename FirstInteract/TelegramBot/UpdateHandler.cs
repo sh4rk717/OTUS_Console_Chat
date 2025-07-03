@@ -40,7 +40,15 @@ public class UpdateHandler(
             {
                 await ProcessScenario(scenarioContext, update, ct);
                 // асинхронно выводим Reply-клавиатуру с основными командами
-                await SendReplyKeyboard(update, scenarioContext, ct);
+                if (scenarioContext.CurrentStep is not null)
+                {
+                    await SendReplyKeyboardCancel(update, scenarioContext, ct);
+                }
+                else
+                {
+                    await SendReplyKeyboardCommon(update, scenarioContext, ct);
+                }
+
                 return;
             }
 
@@ -88,7 +96,7 @@ public class UpdateHandler(
             }
 
             // асинхронно выводим Reply-клавиатуру с основными командами
-             await SendReplyKeyboard(update, scenarioContext, ct);
+            await SendReplyKeyboardCommon(update, scenarioContext, ct);
 
             // асинхронно выводим кнопку menu с командами
             await ShowNativeCommands(ct);
@@ -178,7 +186,7 @@ public class UpdateHandler(
                 cancellationToken: ct);
             return null;
         }
-        
+
         var scenarioContext = new ScenarioContext(update.Message!.From!.Id, ScenarioType.AddTask);
         await ProcessScenario(scenarioContext, update, ct);
         return scenarioContext;
@@ -364,7 +372,7 @@ public class UpdateHandler(
         }
     }
 
-    private async Task SendReplyKeyboard(Update update, ScenarioContext? scenarioContext,
+    private async Task SendReplyKeyboardCommon(Update update, ScenarioContext? scenarioContext,
         CancellationToken ct = default)
     {
         //если пользователь не зарегистрирован, то просим зарегистрироваться
@@ -374,7 +382,7 @@ public class UpdateHandler(
             await botClient.SendMessage(update.Message.Chat, "Please, register", replyMarkup: replyMarkup,
                 cancellationToken: ct);
         }
-        else if (scenarioContext is { CurrentScenario: ScenarioType.AddTask, CurrentStep: "Name" or "Deadline"})
+        else if (scenarioContext is { CurrentScenario: ScenarioType.AddTask, CurrentStep: "Name" or "Deadline" })
         {
             // Если пользователь в сценарии добавления задачи, показываем только /cancel
             var replyMarkup = new ReplyKeyboardMarkup(new[] { new KeyboardButton("/cancel") })
@@ -394,6 +402,20 @@ public class UpdateHandler(
                 cancellationToken: ct);
         }
     }
+
+    private async Task SendReplyKeyboardCancel(Update update, ScenarioContext? scenarioContext,
+        CancellationToken ct = default)
+    {
+        // Если пользователь в сценарии добавления задачи, показываем только /cancel
+        var replyMarkup = new ReplyKeyboardMarkup(new[] { new KeyboardButton("/cancel") })
+        {
+            ResizeKeyboard = true,
+            OneTimeKeyboard = false
+        };
+        await botClient.SendMessage(update.Message!.Chat, "Для отмены сценария нажмите /cancel",
+            replyMarkup: replyMarkup, cancellationToken: ct);
+    }
+
 
     private async Task ShowNativeCommands(CancellationToken ct = default)
     {
