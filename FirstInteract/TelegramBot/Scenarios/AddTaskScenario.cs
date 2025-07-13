@@ -1,3 +1,4 @@
+using System.Globalization;
 using FirstInteract.Core.Entities;
 using FirstInteract.Core.Services;
 using Telegram.Bot;
@@ -43,7 +44,10 @@ public class AddTaskScenario(IUserService userService, IToDoService toDoService)
             {
                 var user = (ToDoUser)context.Data["ToDoUser"];
                 var taskName = (string)context.Data["TaskName"];
-                var isDate = DateTime.TryParse(message.Text!.Trim(), out var taskDeadline);
+                var isDate = DateTime.TryParseExact(message.Text!.Trim(),
+                                                "dd.MM.yyyy",
+                                                CultureInfo.InvariantCulture,
+                                                DateTimeStyles.None, out var taskDeadline);
 
                 if (!isDate)
                 {
