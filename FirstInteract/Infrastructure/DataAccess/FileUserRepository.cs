@@ -83,8 +83,5 @@ public class FileUserRepository : IUserRepository
         await File.WriteAllTextAsync(fullPath, itemJson, ct);
 
         Console.WriteLine($"{user.TelegramUserName} - успешно сериализовано и записано в файл.");
-
-        // _users.Add(user); // для теста пока оставил
-        // return Task.CompletedTask;
     }
 }

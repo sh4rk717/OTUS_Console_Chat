@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace FirstInteract.TelegramBot.Scenarios;
 
 public class InMemoryScenarioContextRepository : IScenarioContextRepository
@@ -5,13 +7,13 @@ public class InMemoryScenarioContextRepository : IScenarioContextRepository
     /// <summary>
     /// Хранилище
     /// </summary>
-    private readonly Dictionary<long, ScenarioContext?> _scenarioContexts = new();
+    private readonly ConcurrentDictionary<long, ScenarioContext?> _scenarioContexts = new();
 
     public Task<ScenarioContext?> GetContext(long userId, CancellationToken ct)
     {
         return (!_scenarioContexts.TryGetValue(userId, out var value)
-            ? Task.FromResult<ScenarioContext?>(null)!
-            : Task.FromResult(value))!;
+            ? Task.FromResult<ScenarioContext?>(null)
+            : Task.FromResult(value));
     }
 
     public Task SetContext(long userId, ScenarioContext? context, CancellationToken ct)
@@ -22,7 +24,7 @@ public class InMemoryScenarioContextRepository : IScenarioContextRepository
 
     public Task ResetContext(long userId, CancellationToken ct)
     {
-        _scenarioContexts.Remove(userId);
+        _scenarioContexts.TryRemove(userId, out _);
         return Task.CompletedTask;
     }
 }

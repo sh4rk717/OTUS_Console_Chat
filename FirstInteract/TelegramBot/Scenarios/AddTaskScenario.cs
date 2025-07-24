@@ -55,8 +55,8 @@ public class AddTaskScenario(IUserService userService, IToDoService toDoService)
                         text: $"Задана невалидная дата! Введите корректную дату:", cancellationToken: ct);
                     return ScenarioResult.Transition; //идем на повторный запрос даты
                 }
-
-                await toDoService.Add(user, taskName, taskDeadline, ct);
+                //TODO подставить корректный список при добавлении
+                await toDoService.Add(user, taskName, taskDeadline, new ToDoList(user, "test"), ct);
                 await bot.SendMessage(chatId: message.Chat.Id,
                     text: $"Задача '{taskName}' добавлена! Крайний срок: {taskDeadline}",
                     cancellationToken: ct);

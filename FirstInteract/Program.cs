@@ -22,9 +22,14 @@ internal static class Program
         
         IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..", "..", "..", "users"));
         IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..", "..", "..", "items"));
+        IToDoListRepository toDoListFileRepository = new FileToDoListRepository(Path.Combine("..", "..", "..", "lists"));
+        
         IUserService userService = new UserService(userFileRepository);
         IToDoService toDoService = new ToDoService(toDoFileRepository);
+        IToDoListService toDoListService = new ToDoListService(toDoListFileRepository);
         IToDoReportService toDoReportService = new ToDoReportService(toDoFileRepository);
+        
+        // сюда добавлять обрабатываемые сценарии
         IEnumerable<IScenario> scenarios = [new AddTaskScenario(userService, toDoService)];
         IScenarioContextRepository contextRepository = new InMemoryScenarioContextRepository();
 
@@ -40,14 +45,14 @@ internal static class Program
                 "Telegram bot token is not configured. Please set the Telegram_TOKEN environment variable.");
 
         var botClient = new TelegramBotClient(token);
-        var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios,
+        var handler = new UpdateHandler(botClient, userService, toDoService, toDoListService, toDoReportService, scenarios,
             contextRepository);
         try
         {
             using var cts = new CancellationTokenSource();
             var receiverOptions = new ReceiverOptions
             {
-                AllowedUpdates = [UpdateType.Message],
+                AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery],
                 DropPendingUpdates = true
             };
 

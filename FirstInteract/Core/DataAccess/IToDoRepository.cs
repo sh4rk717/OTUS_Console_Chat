@@ -16,4 +16,5 @@ public interface IToDoRepository
     //Возвращает количество активных задач у пользователя
     Task<int> CountActive(Guid userId, CancellationToken ct);
     Task<IReadOnlyList<ToDoItem>> Find(Guid userId, Func<ToDoItem, bool> predicate, CancellationToken ct);
+    Task<IReadOnlyList<ToDoItem>> GetByUserIdAndList(Guid userId, Guid? listId, CancellationToken ct);
 }

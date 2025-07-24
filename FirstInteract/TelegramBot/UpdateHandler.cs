@@ -1,6 +1,7 @@
 ﻿using FirstInteract.Core.Entities;
 using FirstInteract.Core.Exceptions;
 using FirstInteract.Core.Services;
+using FirstInteract.TelegramBot.Dto;
 using FirstInteract.TelegramBot.Scenarios;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
@@ -14,6 +15,7 @@ public class UpdateHandler(
     ITelegramBotClient botClient,
     IUserService userService,
     IToDoService toDoService,
+    IToDoListService toDoListService,
     IToDoReportService toDoReportService,
     IEnumerable<IScenario> scenarios,
     IScenarioContextRepository contextRepository)
@@ -24,84 +26,84 @@ public class UpdateHandler(
     public event MessageEventHandler? OnHandleUpdateStarted;
     public event MessageEventHandler? OnHandleUpdateCompleted;
 
-// В метод HandleUpdateAsync добавить получение ScenarioContext через IScenarioContextRepository перед обработкой команд.
-//     ЕСЛИ ScenarioContext найден, ТО вызвать метод ProcessScenario и завершить обработку
     public async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
     {
         try
         {
-            if (update.Message!.Text == "/cancel")
+            switch (update)
             {
-                await contextRepository.ResetContext(update.Message.From!.Id, ct);
-            }
+                case { Message: { } message }:
+                    if (message.Text == "/cancel")
+                    {
+                        await contextRepository.ResetContext(message.From!.Id, ct);
+                    }
 
-            var scenarioContext = await contextRepository.GetContext(update.Message!.From!.Id, ct);
-            if (scenarioContext is not null)
-            {
-                await ProcessScenario(scenarioContext, update, ct);
-                // асинхронно выводим Reply-клавиатуру с основными командами
-                if (scenarioContext.CurrentStep is not null)
-                {
-                    await SendReplyKeyboardCancel(update, scenarioContext, ct);
-                }
-                else
-                {
+                    var scenarioContext = await contextRepository.GetContext(message.From!.Id, ct);
+                    if (scenarioContext is not null)
+                    {
+                        await ProcessScenario(scenarioContext, update, ct);
+                        // асинхронно выводим Reply-клавиатуру с основными командами
+                        if (scenarioContext.CurrentStep is not null)
+                        {
+                            await SendReplyKeyboardCancel(update, scenarioContext, ct);
+                        }
+                        else
+                        {
+                            await SendReplyKeyboardCommon(update, scenarioContext, ct);
+                        }
+                        return;
+                    }
+
+                    var command = message.Text!.Split(" ")[0]; //до 1-ого пробела
+                    OnHandleUpdateStarted?.Invoke(message.Text!);
+                    var restArgs = string.Join(" ", message.Text.Split(" ")[1..]); //все остальное после 1-ого пробела
+                    switch (command)
+                    {
+                        case "/start":
+                            await RunStart(update, ct);
+                            break;
+                        case "/help":
+                            await RunHelp(update, ct);
+                            break;
+                        case "/info":
+                            await RunInfo(update, ct);
+                            break;
+                        case "/addtask":
+                            scenarioContext = await AddTask(update, ct);
+                            break;
+                        case "/show":
+                            await Show(update, ct);
+                            break;
+                        case "/removetask":
+                            await RemoveTask(update, restArgs, ct);
+                            break;
+                        case "/completetask":
+                            await CompleteTask(update, restArgs, ct);
+                            break;
+                        /*case "/showalltasks":
+                            await ShowAllTasks(update, ct);
+                            break;*/
+                        case "/report":
+                            await Report(update, toDoReportService, ct);
+                            break;
+                        case "/find":
+                            await Find(update, restArgs, ct);
+                            break;
+                    }
+                    // асинхронно выводим Reply-клавиатуру с основными командами
                     await SendReplyKeyboardCommon(update, scenarioContext, ct);
-                }
-
-                return;
+                    // асинхронно выводим кнопку menu с командами
+                    await ShowNativeCommands(ct);
+                    OnHandleUpdateCompleted?.Invoke(message.Text);
+                    break;
+                case { CallbackQuery: { } callbackQuery }:
+                    await OnCallbackQuery(update, callbackQuery, ct);
+                    break;
+                default:
+                    //await OnUnknown(update);
+                    
+                    break;
             }
-
-            var command = update.Message!.Text!.Split(" ")[0]; //до 1-ого пробела
-
-
-            OnHandleUpdateStarted?.Invoke(update.Message!.Text!);
-
-            var restArgs = string.Join(" ", update.Message.Text.Split(" ")[1..]); //все остальное после 1-ого пробела
-            switch (command)
-            {
-                case "/start":
-                    await RunStart(update, ct);
-                    break;
-                case "/help":
-                    await RunHelp(update, ct);
-                    break;
-                case "/info":
-                    await RunInfo(update, ct);
-                    break;
-                case "/addtask":
-                    scenarioContext = await AddTask(update, ct);
-                    break;
-                case "/showtasks":
-                    await ShowTasks(update, ct);
-                    break;
-                case "/removetask":
-                    await RemoveTask(update, restArgs, ct);
-                    break;
-                case "/completetask":
-                    await CompleteTask(update, restArgs, ct);
-                    break;
-                case "/showalltasks":
-                    await ShowAllTasks(update, ct);
-                    break;
-                case "/report":
-                    await Report(update, toDoReportService, ct);
-                    break;
-                case "/find":
-                    await Find(update, restArgs, ct);
-                    break;
-                // case "/cancel":
-                //     await Cancel(update, ct);
-                //     break;
-            }
-
-            // асинхронно выводим Reply-клавиатуру с основными командами
-            await SendReplyKeyboardCommon(update, scenarioContext, ct);
-
-            // асинхронно выводим кнопку menu с командами
-            await ShowNativeCommands(ct);
-
-            OnHandleUpdateCompleted?.Invoke(update.Message.Text);
         }
         catch (ArgumentException e)
         {
@@ -157,10 +159,10 @@ public class UpdateHandler(
             /info - информация о программе
             Команды доступные после регистрации пользователя:
             /addtask - позволяет добавить задачу в список задач
-            /showtasks - позволяет просмотреть текущий список активных задач
+            /show - позволяет просмотреть списки задач
             /removetask - позволяет удалить задачу из списка задач по ее порядковому номеру
             /completetask - позволяет пометить задачу как завершенную по ее GUID
-            /showalltasks - позволяет просмотреть список всех задач
+            ОТКЛЮЧЕНО: /showalltasks - позволяет просмотреть список всех задач
             /report - отчет по задачам пользователя
             /find - поиск задач по началу их названия
             """, cancellationToken: ct);
@@ -171,7 +173,7 @@ public class UpdateHandler(
         await botClient.SendMessage(update.Message!.Chat, """
                                                           Program info: version 1.0d.
                                                           Created: Feb 18, 2025
-                                                          Last updated: June 25, 2025
+                                                          Last updated: July 25, 2025
                                                           """, cancellationToken: ct);
     }
 
@@ -192,7 +194,7 @@ public class UpdateHandler(
         return scenarioContext;
     }
 
-    private async Task ShowTasks(Update update, CancellationToken ct)
+    private async Task Show(Update update, CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
         if (await userService.GetUser(update.Message!.From!.Id, ct) == null)
@@ -201,7 +203,10 @@ public class UpdateHandler(
                 cancellationToken: ct);
             return;
         }
-
+        /////////////////////////////////////////////////////
+        await ListInlineKeyboard(update, ct);
+        /////////////////////////////////////////////////////////////////////////////////
+        /*
         var user = await userService.GetUser(update.Message.From.Id, ct);
         var activeTasks = await toDoService.GetActiveByUserId(user!.UserId, ct);
         var activeTaskCount = activeTasks.Count;
@@ -219,10 +224,45 @@ public class UpdateHandler(
                     parseMode: ParseMode.Html);
             }
         }
+        */
     }
 
-    private async Task RemoveTask(Update update, string userInputTaskToRemove,
-        CancellationToken ct)
+    private async Task ListInlineKeyboard(Update update, CancellationToken ct)
+    {
+        var user = await userService.GetUser(update.Message!.From.Id, ct);
+        var userLists = await toDoListService.GetUserLists(user!.UserId, ct);
+    
+        // Создаем список строк для клавиатуры
+        var keyboardRows = new List<InlineKeyboardButton[]>();
+    
+        // Добавляем кнопку "Без списка"
+        keyboardRows.Add([
+            InlineKeyboardButton.WithCallbackData(
+                "📌 Без списка", 
+                new ToDoListCallbackDto("show", null).ToString())
+        ]);
+    
+        // Добавляем все списки пользователя
+        if (userLists.Count > 0) 
+            keyboardRows.AddRange(userLists.Select(list => (InlineKeyboardButton[]) [InlineKeyboardButton.WithCallbackData(list.Name, new ToDoListCallbackDto("show", list.Id.ToString()).ToString())]));
+
+        // Добавляем кнопки действий в последнюю строку
+        keyboardRows.Add([
+            InlineKeyboardButton.WithCallbackData("🆕 Добавить", "addlist"),
+            InlineKeyboardButton.WithCallbackData("❌ Удалить", "deletelist")
+        ]);
+    
+        // Создаем клавиатуру
+        var inlineKeyboard = new InlineKeyboardMarkup(keyboardRows);
+
+        await botClient.SendMessage(
+            chatId: update.Message!.Chat, 
+            text: "Выберите список:", 
+            replyMarkup: inlineKeyboard, 
+            cancellationToken: ct);
+    }
+
+    private async Task RemoveTask(Update update, string userInputTaskToRemove, CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
         if (await userService.GetUser(update.Message!.From!.Id, ct) == null)
@@ -296,7 +336,7 @@ public class UpdateHandler(
         }
     }
 
-    private async Task ShowAllTasks(Update update, CancellationToken ct)
+    /*private async Task ShowAllTasks(Update update, CancellationToken ct)
     {
         //если пользователь не зарегистрирован, то ничего не происходит при вызове
         if (await userService.GetUser(update.Message!.From!.Id, ct) == null)
@@ -323,7 +363,7 @@ public class UpdateHandler(
                     cancellationToken: ct, parseMode: ParseMode.Html);
             }
         }
-    }
+    }*/
 
     private async Task Report(Update update, IToDoReportService toDoReport,
         CancellationToken ct)
@@ -396,7 +436,7 @@ public class UpdateHandler(
         else
         {
             var replyMarkup = new ReplyKeyboardMarkup(true)
-                .AddNewRow("/showalltasks", "/showtasks")
+                .AddNewRow(/*"/showalltasks", */"/show")
                 .AddNewRow("/addtask", "/report");
             await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: replyMarkup,
                 cancellationToken: ct);
@@ -425,8 +465,8 @@ public class UpdateHandler(
             new() { Command = "help", Description = "Помощь" },
             new() { Command = "info", Description = "Информация о боте" },
             new() { Command = "addtask", Description = "Добавить задачу" },
-            new() { Command = "showtasks", Description = "Показать активные задачи" },
-            new() { Command = "showalltasks", Description = "Показать все задачи" },
+            new() { Command = "show", Description = "Показать активные задачи" },
+            //new() { Command = "showalltasks", Description = "Показать все задачи" },
             new() { Command = "report", Description = "Отчет по задачам" }
         };
 
@@ -455,5 +495,53 @@ public class UpdateHandler(
             await contextRepository.ResetContext(userId, ct);
         else
             await contextRepository.SetContext(userId, context, ct)!;
+    }
+
+    private async Task OnCallbackQuery(Update update, CallbackQuery callbackQuery, CancellationToken ct)
+    {
+        // Проверка регистрации пользователя
+        var user = await userService.GetUser(callbackQuery.From.Id, ct);
+        if (user == null)
+        {
+            await botClient.AnswerCallbackQuery(callbackQuery.Id, "Пользователь не зарегистрирован", cancellationToken: ct);
+            return;
+        }
+
+        // Проверка активного сценария
+        var scenarioContext = await contextRepository.GetContext(callbackQuery.From.Id, ct);
+        if (scenarioContext is not null)
+        {
+            await ProcessScenario(scenarioContext, update, ct);
+            return;
+        }
+
+        // Обработка CallbackDto
+        var callbackDto = CallbackDto.FromString(callbackQuery.Data);
+        if (callbackDto.Action == "show")
+        {
+            var listDto = ToDoListCallbackDto.FromString(callbackQuery.Data);
+            var tasks = await toDoService.GetActiveByUserId(user.UserId, ct);
+            var filteredTasks = listDto.ToDoListId == null
+                ? tasks.Where(t => t.List == null).ToList()
+                : tasks.Where(t => t.List.ToString() == listDto.ToDoListId.ToString()).ToList();
+
+            if (filteredTasks.Count == 0)
+            {
+                await botClient.SendMessage(callbackQuery.Message!.Chat, "В этом списке нет задач", cancellationToken: ct);
+            }
+            else
+            {
+                await botClient.SendMessage(callbackQuery.Message!.Chat, "Задачи в выбранном списке:", cancellationToken: ct);
+                var index = 1;
+                foreach (var item in filteredTasks)
+                {
+                    await botClient.SendMessage(callbackQuery.Message.Chat, $"{index++}. {item.Name} - {item.CreatedAt}\n<code>{item.Id}</code>", cancellationToken: ct, parseMode: ParseMode.Html);
+                }
+            }
+            await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+            return;
+        }
+        // Можно добавить обработку других Action при необходимости
+        await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
     }
 }
