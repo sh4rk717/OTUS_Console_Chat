@@ -21,7 +21,7 @@ public class ToDoService(IToDoRepository repository) : IToDoService
 
     public async Task<ToDoItem> Add(ToDoUser user, string name, DateTime deadline, ToDoList? list, CancellationToken ct)
     {
-        var newTaskItem = new ToDoItem(name, user, deadline);
+        var newTaskItem = new ToDoItem(name, user, deadline, list);
         var newTask = Program.ValidateString(name);
 
         // проверка на кол-во задач

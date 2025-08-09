@@ -1,6 +1,6 @@
 ﻿namespace FirstInteract.Core.Entities;
 
-public class ToDoItem
+public class ToDoItem(string name, ToDoUser user, DateTime deadline, ToDoList? list)
 {
     public enum ToDoItemState
     {
@@ -8,19 +8,12 @@ public class ToDoItem
         Completed
     }
 
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public ToDoUser User { get; set; }
-    public string Name { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime Deadline { get; set; }
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public ToDoUser User { get; init; } = user;
+    public string Name { get; init; } = name;
+    public DateTime CreatedAt { get; init; } = DateTime.Now;
+    public DateTime Deadline { get; init; } = deadline;
     public ToDoItemState State { get; set; } = ToDoItemState.Active;
     public DateTime? StateChangedAt { get; set; } = DateTime.Now;
-    public ToDoList? List { get; set; }
-
-    public ToDoItem(string name, ToDoUser user, DateTime deadline)
-    {
-        User = user;   
-        Name = name;
-        Deadline = deadline;
-    }
+    public ToDoList? List { get; init; } = list;
 }

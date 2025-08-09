@@ -20,9 +20,9 @@ internal static class Program
         Console.InputEncoding = Encoding.Default;
         Console.OutputEncoding = Encoding.Default;
         
-        IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..", "..", "..", "users"));
-        IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..", "..", "..", "items"));
-        IToDoListRepository toDoListFileRepository = new FileToDoListRepository(Path.Combine("..", "..", "..", "lists"));
+        IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..", "..", "..", "JSON", "users"));
+        IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..", "..", "..", "JSON", "items"));
+        IToDoListRepository toDoListFileRepository = new FileToDoListRepository(Path.Combine("..", "..", "..", "JSON", "lists"));
         
         IUserService userService = new UserService(userFileRepository);
         IToDoService toDoService = new ToDoService(toDoFileRepository);
@@ -30,7 +30,12 @@ internal static class Program
         IToDoReportService toDoReportService = new ToDoReportService(toDoFileRepository);
         
         // сюда добавлять обрабатываемые сценарии
-        IEnumerable<IScenario> scenarios = [new AddTaskScenario(userService, toDoService)];
+        IEnumerable<IScenario> scenarios = 
+        [
+            new AddTaskScenario(userService, toDoService, toDoListService),
+            new AddListScenario(userService, toDoListService),
+            new DeleteListScenario(userService, toDoListService, toDoService)
+        ];
         IScenarioContextRepository contextRepository = new InMemoryScenarioContextRepository();
 
         //Linux env. var
