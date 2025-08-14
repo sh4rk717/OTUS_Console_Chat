@@ -123,13 +123,10 @@ public class FileToDoRepository : IToDoRepository
         Guid? userId = null;
 
         // 2. Ищем пользователя, которому принадлежит задача
-        foreach (var userEntry in indexData.UserToItems)
+        foreach (var userEntry in indexData.UserToItems.Where(userEntry => userEntry.Value.Contains(itemId)))
         {
-            if (userEntry.Value.Contains(itemId))
-            {
-                userId = userEntry.Key;
-                break;
-            }
+            userId = userEntry.Key;
+            break;
         }
 
         if (userId == null)
@@ -152,11 +149,11 @@ public class FileToDoRepository : IToDoRepository
         {
             // 4. Удаляем файл задачи
             File.Delete(itemPath);
-        
+
             // 5. Обновляем индекс
             indexData.UserToItems[userId.Value].Remove(itemId);
             SaveIndex(indexData);
-        
+
             Console.WriteLine($"Задача {itemId} пользователя {userId} успешно удалена");
         }
         catch (IOException ex)
@@ -245,7 +242,7 @@ public class FileToDoRepository : IToDoRepository
             // Десериализуем элемент
             var item = JsonSerializer.Deserialize<ToDoItem>(json);
 
-            // Проверяем условия: пользовател, активный статус и список для задач
+            // Проверяем условия: пользователь, активный статус и список для задач
             if (item != null &&
                 item.User.UserId == userId &&
                 item.List?.Id == listId &&
@@ -257,7 +254,7 @@ public class FileToDoRepository : IToDoRepository
 
         return activeItems;
     }
-    
+
     public async Task<bool> ExistsByName(Guid userId, string name, CancellationToken ct)
     {
         var fullPath = Path.Combine(_path, userId.ToString());
@@ -356,7 +353,6 @@ public class FileToDoRepository : IToDoRepository
 
         return result;
     }
-
 
 
     private void RebuildIndex()

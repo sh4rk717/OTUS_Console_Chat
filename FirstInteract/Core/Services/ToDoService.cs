@@ -6,8 +6,10 @@ namespace FirstInteract.Core.Services;
 
 public class ToDoService(IToDoRepository repository) : IToDoService
 {
-    // private readonly List<ToDoItem> _items = [];
-    // private IToDoRepository _repository = repository;
+    public async Task<ToDoItem?> Get(Guid toDoItemId, CancellationToken ct)
+    {
+        return await repository.Get(toDoItemId, ct);
+    }
 
     public async Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct)
     {
@@ -27,7 +29,7 @@ public class ToDoService(IToDoRepository repository) : IToDoService
         // проверка на кол-во задач
         if (await repository.CountActive(user.UserId, ct) >= Program.MaxTasks)
             throw new TaskCountLimitException(Program.MaxTasks);
-        
+
         // проверка на длину имени задачи
         if (newTask.Length > Program.MaxTaskLength)
             throw new TaskLengthLimitException(newTask.Length, Program.MaxTaskLength);
@@ -35,7 +37,7 @@ public class ToDoService(IToDoRepository repository) : IToDoService
         // проверка на дубликат задачи по имени задачи
         if (await repository.ExistsByName(user.UserId, name, ct))
             throw new DuplicateTaskException(newTask);
-        
+
         await repository.Add(newTaskItem, ct);
 
         return newTaskItem;
@@ -63,6 +65,5 @@ public class ToDoService(IToDoRepository repository) : IToDoService
     public async Task<IReadOnlyList<ToDoItem>> GetByUserIdAndList(Guid userId, Guid? listId, CancellationToken ct)
     {
         return await repository.GetByUserIdAndList(userId, listId, ct);
-        //var b = a.
     }
 }

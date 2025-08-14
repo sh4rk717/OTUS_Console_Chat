@@ -14,7 +14,6 @@ public class UserService(IUserRepository userRepository) : IUserService
             TelegramUserName = telegramUserName,
             UserId = Guid.NewGuid()
         };
-        
         await userRepository.Add(newUser, ct);
         return newUser;
     }

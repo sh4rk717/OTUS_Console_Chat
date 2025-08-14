@@ -1,11 +1,12 @@
-﻿using FirstInteract.Core.Exceptions;
+﻿using FirstInteract.Core.Entities;
+using FirstInteract.Core.Exceptions;
 using FirstInteract.Core.Services;
+using FirstInteract.Helpers;
 using FirstInteract.TelegramBot.Dto;
 using FirstInteract.TelegramBot.Scenarios;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FirstInteract.TelegramBot;
@@ -25,6 +26,9 @@ public class UpdateHandler(
     public event MessageEventHandler? OnHandleUpdateStarted;
     public event MessageEventHandler? OnHandleUpdateCompleted;
 
+    // Количество кнопок на одной странице Inline-клавиатуры с задачами
+    private const int PageSize = 5;
+
     public async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
     {
         try
@@ -33,7 +37,7 @@ public class UpdateHandler(
             switch (update)
             {
                 case { Message: { } message }:
-                    
+
                     if (message.Text == "/cancel")
                     {
                         await contextRepository.ResetContext(message.From!.Id, ct);
@@ -69,12 +73,6 @@ public class UpdateHandler(
                         case "/show":
                             await Show(update, ct);
                             break;
-                        case "/removetask":
-                            await RemoveTask(update, restArgs, ct);
-                            break;
-                        case "/completetask":
-                            await CompleteTask(update, restArgs, ct);
-                            break;
                         case "/report":
                             await Report(update, toDoReportService, ct);
                             break;
@@ -89,91 +87,7 @@ public class UpdateHandler(
                     break;
 
                 case { CallbackQuery: { } callbackQuery }:
-                    // Проверка регистрации пользователя
-                    var user = await userService.GetUser(callbackQuery.From.Id, ct);
-                    if (user == null)
-                    {
-                        await botClient.AnswerCallbackQuery(callbackQuery.Id, "Пользователь не зарегистрирован",
-                            cancellationToken: ct);
-                        return;
-                    }
-
-                    // Проверка активного сценария
-                    var scenarioContextCallback = await contextRepository.GetContext(callbackQuery.From.Id, ct);
-                    if (scenarioContextCallback is not null)
-                    {
-                        await ProcessScenario(scenarioContextCallback, update, ct);
-                        await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
-                        return;
-                    }
-
-                    // Обработка CallbackDto
-                    var callbackDto = CallbackDto.FromString(callbackQuery.Data!);
-
-                    // Switch по действиям в CallbackQuery
-                    switch (callbackDto.Action)
-                    {
-                        // Обработка кнопок "Без списка" или выбранный список
-                        case "show":
-                        {
-                            var listDto = ToDoListCallbackDto.FromString(callbackQuery.Data!);
-                            var tasks = await toDoService.GetByUserIdAndList(user.UserId, listDto.ToDoListId, ct);
-
-                            if (tasks.Count == 0)
-                            {
-                                await botClient.SendMessage(callbackQuery.Message!.Chat, "В этом списке нет задач",
-                                    cancellationToken: ct);
-                            }
-                            else
-                            {
-                                await botClient.SendMessage(callbackQuery.Message!.Chat, $"Список активных задач:",
-                                    cancellationToken: ct);
-                                var index = 1;
-                                foreach (var item in tasks)
-                                {
-                                    await botClient.SendMessage(callbackQuery.Message.Chat,
-                                        $"{index++}. {item.Name} - {item.CreatedAt}\n<code>{item.Id}</code>",
-                                        cancellationToken: ct, parseMode: ParseMode.Html);
-                                }
-                            }
-
-                            var replyMarkup = new ReplyKeyboardMarkup(true)
-                                .AddNewRow("/show")
-                                .AddNewRow("/addtask", "/report");
-                            await botClient.SendMessage(update.CallbackQuery.Message!.Chat, "Выберите команду:",
-                                replyMarkup: replyMarkup,
-                                cancellationToken: ct);
-
-                            await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
-                            return;
-                        }
-
-                        // Обработка кнопки "🆕 Добавить" (addlist)
-                        case "addlist":
-                            scenarioContextCallback = new ScenarioContext(callbackQuery.From.Id, ScenarioType.AddList);
-                            await ProcessScenario(scenarioContextCallback, update, ct);
-                            await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
-                            break;
-
-                        // Обработка кнопки "❌ Удалить" (deletelist)
-                        case "deletelist":
-                            //Если NULL, то присваиваем значение
-                            scenarioContextCallback ??=
-                                new ScenarioContext(callbackQuery.From.Id, ScenarioType.DeleteList);
-                            await ProcessScenario(scenarioContextCallback, update, ct);
-                            await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
-                            break;
-
-                        // Обработка кнопки выбора списка для задачи (addtask)
-                        case "addtask":
-                            //Если NULL, то присваиваем значение
-                            scenarioContextCallback ??=
-                                new ScenarioContext(callbackQuery.From.Id, ScenarioType.AddTask);
-                            await ProcessScenario(scenarioContextCallback, update, ct);
-                            await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
-                            break;
-                    }
-
+                    await OnCallbackQuery(update, callbackQuery, ct);
                     break;
             }
         }
@@ -207,6 +121,223 @@ public class UpdateHandler(
         }
     }
 
+    private async Task OnCallbackQuery(Update update, CallbackQuery callbackQuery, CancellationToken ct)
+    {
+        // Проверка регистрации пользователя
+        var user = await userService.GetUser(callbackQuery.From.Id, ct);
+        if (user == null)
+        {
+            await botClient.AnswerCallbackQuery(callbackQuery.Id, "Пользователь не зарегистрирован",
+                cancellationToken: ct);
+            return;
+        }
+
+        // Проверка активного сценария
+        var scenarioContextCallback = await contextRepository.GetContext(callbackQuery.From.Id, ct);
+        if (scenarioContextCallback is not null)
+        {
+            await ProcessScenario(scenarioContextCallback, update, ct);
+            await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+            return;
+        }
+
+        // Обработка CallbackDto
+        var callbackDto = CallbackDto.FromString(callbackQuery.Data!);
+
+        // Switch по действиям в CallbackQuery
+        switch (callbackDto.Action)
+        {
+            // Обработка кнопок "Без списка" или выбранный список
+            case "show":
+            {
+                var listDto = PagedListCallbackDto.FromString(callbackQuery.Data!);
+                var tasks = await toDoService.GetByUserIdAndList(user.UserId, listDto.ToDoListId, ct);
+                // Все задачи пользователя в конкретном списке (активные, завершенные)
+                var allTasksInList = (await toDoService.GetAllByUserId(user.UserId, ct))
+                    .Where(item => item.List?.Id == listDto.ToDoListId /* && item.State == specificState*/)
+                    .ToList();
+
+                if (allTasksInList.Count == 0)
+                {
+                    await botClient.SendMessage(callbackQuery.Message!.Chat, "В этом списке нет задач",
+                        cancellationToken: ct);
+                }
+                else
+                {
+                    var userListTasks = await toDoService.GetByUserIdAndList(user.UserId, listDto.ToDoListId, ct);
+                    IReadOnlyList<KeyValuePair<string, string>> a = Array.AsReadOnly(
+                        userListTasks
+                            .Select(item => new KeyValuePair<string, string>(item.Name, item.Id.ToString()))
+                            .ToArray());
+
+                    // Создаем клавиатуру
+                    var inlineKeyboard = BuildPagedButtons(a,
+                        new PagedListCallbackDto("show", listDto.ToDoListId, listDto.Page) /*, true*/);
+
+                    // Преобразуем в список для редактирования
+                    var keyboardRows = inlineKeyboard.InlineKeyboard.ToList();
+
+                    // Добавляем новую строку с кнопкой внизу
+                    keyboardRows.Add([
+                        InlineKeyboardButton.WithCallbackData("☑️ Посмотреть выполненные",
+                            new PagedListCallbackDto("show_completed", listDto.ToDoListId, 0).ToString())
+                    ]);
+
+                    // Создаем обновленную клавиатуру
+                    inlineKeyboard = new InlineKeyboardMarkup(keyboardRows);
+
+                    await botClient.EditMessageText(
+                        chatId: update.CallbackQuery!.Message!.Chat,
+                        messageId: callbackQuery.Message!.Id,
+                        text: tasks.Count > 0 ? "Активные задачи:" : "Активных задач в этом списке нет",
+                        replyMarkup: inlineKeyboard,
+                        cancellationToken: ct);
+                }
+
+                await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+                break;
+            }
+
+            // Обработка кнопки "Посмотреть выполненные" после выбора списка
+            case "show_completed":
+                var listDto2 = PagedListCallbackDto.FromString(callbackQuery.Data!);
+                var completedTasks = (await toDoService.GetAllByUserId(user.UserId, ct))
+                    .Where(item => item.List?.Id == listDto2.ToDoListId
+                                   && item.State == ToDoItem.ToDoItemState.Completed)
+                    .ToList();
+
+                if (completedTasks.Count == 0)
+                {
+                    await botClient.SendMessage(callbackQuery.Message!.Chat, "В этом списке нет выполненных задач",
+                        cancellationToken: ct);
+                }
+                else
+                {
+                    IReadOnlyList<KeyValuePair<string, string>> a = Array.AsReadOnly(
+                        completedTasks
+                            .Select(item => new KeyValuePair<string, string>(item.Name, item.Id.ToString()))
+                            .ToArray());
+
+                    var pagedListCallbackDto = new PagedListCallbackDto("show_completed", listDto2.ToDoListId,
+                        listDto2.Page);
+                    // Создаем клавиатуру
+                    var inlineKeyboard = BuildPagedButtons(a, pagedListCallbackDto);
+                    await botClient.EditMessageText(
+                        chatId: update.CallbackQuery!.Message!.Chat,
+                        messageId: callbackQuery.Message!.Id,
+                        text: "Выполненные задачи:",
+                        replyMarkup: inlineKeyboard,
+                        cancellationToken: ct);
+                }
+
+                await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+                break;
+
+            // Обработка кнопки "🆕 Добавить" (addlist)
+            case "addlist":
+                scenarioContextCallback = new ScenarioContext(callbackQuery.From.Id, ScenarioType.AddList);
+                await ProcessScenario(scenarioContextCallback, update, ct);
+                await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+                break;
+
+            // Обработка кнопки "❌ Удалить" (deletelist)
+            case "deletelist":
+                //Если NULL, то присваиваем значение
+                scenarioContextCallback ??= new ScenarioContext(callbackQuery.From.Id, ScenarioType.DeleteList);
+                await ProcessScenario(scenarioContextCallback, update, ct);
+                await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+                break;
+
+            // Обработка кнопки выбора списка для задачи (addtask)
+            case "addtask":
+                //Если NULL, то присваиваем значение
+                scenarioContextCallback ??= new ScenarioContext(callbackQuery.From.Id, ScenarioType.AddTask);
+                await ProcessScenario(scenarioContextCallback, update, ct);
+                await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+                break;
+
+            // Выводим информацию по задаче
+            case "showtask":
+                var toDoItemDto = ToDoItemCallbackDto.FromString(callbackQuery.Data!);
+                var itemGuid = Guid.Parse(toDoItemDto.ToString().Split("|")[1]);
+                var toDoItem = await toDoService.Get(itemGuid, ct);
+
+                switch (toDoItem!.State)
+                {
+                    case ToDoItem.ToDoItemState.Active:
+                    {
+                        var activeTaskInfo =
+                            $"{toDoItem.Name}\n" +
+                            $"\n" +
+                            $"Срок выполнения: {toDoItem.Deadline}\n" +
+                            $"Время создания: {toDoItem.CreatedAt}";
+
+                        // Создаем список строк для клавиатуры
+                        var keyboardRows = new List<InlineKeyboardButton[]>();
+
+                        // Добавляем кнопки действий
+                        keyboardRows.Add([
+                            InlineKeyboardButton.WithCallbackData("✅Выполнить",
+                                new ToDoItemCallbackDto("completetask", itemGuid).ToString()),
+                            InlineKeyboardButton.WithCallbackData("❌Удалить",
+                                new ToDoItemCallbackDto("deletetask", itemGuid).ToString())
+                        ]);
+
+                        // Создаем клавиатуру
+                        var inlineKeyboard = new InlineKeyboardMarkup(keyboardRows);
+
+                        // Выводим информацию по задаче с кнопками
+                        await botClient.SendMessage(
+                            chatId: update.CallbackQuery!.Message!.Chat,
+                            text: activeTaskInfo,
+                            replyMarkup: inlineKeyboard,
+                            cancellationToken: ct);
+                        break;
+                    }
+                    case ToDoItem.ToDoItemState.Completed:
+                    {
+                        var completedTaskInfo =
+                            $"{toDoItem.Name}\n" +
+                            $"\n" +
+                            $"Срок выполнения: {toDoItem.Deadline}\n" +
+                            $"Время создания: {toDoItem.CreatedAt}\n" +
+                            $"Выполнена: {toDoItem.StateChangedAt}";
+
+                        // Выводим информацию по задаче с кнопками
+                        await botClient.SendMessage(
+                            chatId: update.CallbackQuery!.Message!.Chat,
+                            text: completedTaskInfo,
+                            cancellationToken: ct);
+                        break;
+                    }
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+
+                await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+                break;
+
+            case "completetask":
+                toDoItemDto = ToDoItemCallbackDto.FromString(callbackQuery.Data!);
+                itemGuid = Guid.Parse(toDoItemDto.ToString().Split("|")[1]);
+                toDoItem = await toDoService.Get(itemGuid, ct);
+                await toDoService.MarkCompleted(itemGuid, ct);
+                // Выводим информацию, что задача выполнена
+                await botClient.SendMessageWithDefaultButtons(update.CallbackQuery!.Message!.Chat,
+                    $"Задача \"{toDoItem!.Name}\" выполнена", cancellationToken: ct);
+
+                await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+                break;
+
+            case "deletetask":
+                //Если NULL, то присваиваем значение
+                scenarioContextCallback ??= new ScenarioContext(callbackQuery.From.Id, ScenarioType.DeleteTask);
+                await ProcessScenario(scenarioContextCallback, update, ct);
+                await botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct);
+                break;
+        }
+    }
+
     public Task HandleErrorAsync(ITelegramBotClient bot, Exception exception, HandleErrorSource source,
         CancellationToken cancellationToken)
     {
@@ -232,19 +363,18 @@ public class UpdateHandler(
             Команды доступные после регистрации пользователя:
             /addtask - позволяет добавить задачу в список задач
             /show - позволяет просмотреть списки задач
-            /removetask - позволяет удалить задачу из списка задач по ее порядковому номеру
-            /completetask - позволяет пометить задачу как завершенную по ее GUID
             /report - отчет по задачам пользователя
             /find - поиск задач по началу их названия
+            /cancel - отмена текущего сценария
             """, cancellationToken: ct);
     }
 
     private async Task RunInfo(Update update, CancellationToken ct)
     {
         await botClient.SendMessage(update.Message!.Chat, """
-                                                          Program info: version 1.0e.
+                                                          Program info: version 1.0f.
                                                           Created: Feb 18, 2025
-                                                          Last updated: August 09, 2025
+                                                          Last updated: August 14, 2025
                                                           """, cancellationToken: ct);
     }
 
@@ -289,9 +419,9 @@ public class UpdateHandler(
 
         // Добавляем кнопку "Без списка"
         keyboardRows.Add([
-            InlineKeyboardButton.WithCallbackData(
-                "📌 Без списка",
-                new ToDoListCallbackDto("show", null).ToString())
+            InlineKeyboardButton.WithCallbackData("📌 Без списка",
+                new PagedListCallbackDto("show", null, page: 0).ToString()
+            )
         ]);
 
         // Добавляем все списки пользователя
@@ -299,7 +429,7 @@ public class UpdateHandler(
             keyboardRows.AddRange(userLists.Select(list => (InlineKeyboardButton[])
             [
                 InlineKeyboardButton.WithCallbackData(list.Name,
-                    new ToDoListCallbackDto("show", list.Id).ToString())
+                    new PagedListCallbackDto("show", list.Id, page: 0).ToString())
             ]));
 
         // Добавляем кнопки действий в последнюю строку
@@ -311,87 +441,13 @@ public class UpdateHandler(
         // Создаем клавиатуру
         var inlineKeyboard = new InlineKeyboardMarkup(keyboardRows);
 
-        await botClient.SendMessage(
+        var inlineMessage = await botClient.SendMessage(
             chatId: update.Message!.Chat,
             text: "Выберите список:",
             replyMarkup: inlineKeyboard,
             cancellationToken: ct);
-    }
 
-    private async Task RemoveTask(Update update, string userInputTaskToRemove, CancellationToken ct)
-    {
-        //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (await userService.GetUser(update.Message!.From!.Id, ct) == null)
-        {
-            await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован",
-                cancellationToken: ct);
-            await SendReplyKeyboardStart(update, ct);
-            return;
-        }
-
-        var user = await userService.GetUser(update.Message.From.Id, ct);
-        var taskList = await toDoService.GetAllByUserId(user!.UserId, ct);
-        var taskCount = taskList.Count;
-
-        if (taskCount == 0)
-        {
-            await botClient.SendMessage(update.Message.Chat, "Ваш список задач пуст\nНет задач для удаления",
-                cancellationToken: ct);
-
-            return;
-        }
-
-        var numberToRemove = 0;
-        var isInt = false;
-        while (numberToRemove <= 0 || numberToRemove > taskCount || !isInt)
-        {
-            userInputTaskToRemove = Program.ValidateString(userInputTaskToRemove);
-            if (userInputTaskToRemove == "q") return;
-
-            isInt = int.TryParse(userInputTaskToRemove, out numberToRemove);
-
-            if (numberToRemove > 0 && numberToRemove <= taskCount && isInt) continue;
-
-            await botClient.SendMessage(update.Message.Chat, "Некорректный номер задачи для удаления",
-                cancellationToken: ct);
-            await botClient.SendMessage(update.Message.Chat,
-                "Введите номер задачи или нажмите q для выхода из режима удаления: ", cancellationToken: ct);
-        }
-
-        var taskToRemove = taskList[numberToRemove - 1];
-        await toDoService.Delete(taskToRemove.Id, ct);
-        await botClient.SendMessage(update.Message.Chat, $"Задача \"{taskToRemove.Name}\" удалена.",
-            cancellationToken: ct);
-    }
-
-    private async Task CompleteTask(Update update, string userInputTaskToMarkComplete,
-        CancellationToken ct)
-    {
-        //если пользователь не зарегистрирован, то ничего не происходит при вызове
-        if (await userService.GetUser(update.Message!.From!.Id, ct) == null)
-        {
-            await botClient.SendMessage(update.Message.Chat, "Команда не доступна. Пользователь не зарегистрирован",
-                cancellationToken: ct);
-            await SendReplyKeyboardStart(update, ct);
-            return;
-        }
-
-        var user = await userService.GetUser(update.Message.From.Id, ct);
-        var itemList = await toDoService.GetActiveByUserId(user!.UserId, ct);
-
-        if (itemList.Count == 0)
-        {
-            await botClient.SendMessage(update.Message.Chat,
-                "Ваш список задач пуст\nНет задач чтоб пометить их как выполненные", cancellationToken: ct);
-            return;
-        }
-
-        foreach (var item in itemList.Where(x => x.Id == Guid.Parse(userInputTaskToMarkComplete)))
-        {
-            await toDoService.MarkCompleted(item.Id, ct);
-            await botClient.SendMessage(update.Message.Chat, $"Задача \"{item.Name}\" помечена исполненной.",
-                cancellationToken: ct);
-        }
+        Console.WriteLine(inlineMessage.Id);
     }
 
     private async Task Report(Update update, IToDoReportService toDoReport,
@@ -465,14 +521,11 @@ public class UpdateHandler(
         }
         else
         {
-            var replyMarkup = new ReplyKeyboardMarkup(true)
-                .AddNewRow("/show")
-                .AddNewRow("/addtask", "/report");
-            await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: replyMarkup,
+            await botClient.SendMessageWithDefaultButtons(update.Message.Chat, "Выберите команду:",
                 cancellationToken: ct);
         }
     }
-    
+
     private async Task ShowNativeCommands(CancellationToken ct = default)
     {
         var commands = new List<BotCommand>
@@ -482,7 +535,8 @@ public class UpdateHandler(
             new() { Command = "info", Description = "Информация о боте" },
             new() { Command = "addtask", Description = "Добавить задачу" },
             new() { Command = "show", Description = "Показать активные задачи" },
-            new() { Command = "report", Description = "Отчет по задачам" }
+            new() { Command = "report", Description = "Отчет по задачам" },
+            new() { Command = "cancel", Description = "Отменить текущий сценарий" }
         };
 
         await botClient.SetMyCommands(commands: commands, cancellationToken: ct);
@@ -510,5 +564,46 @@ public class UpdateHandler(
             await contextRepository.ResetContext(userId, ct);
         else
             await contextRepository.SetContext(userId, context, ct)!;
+    }
+
+    private InlineKeyboardMarkup BuildPagedButtons(IReadOnlyList<KeyValuePair<string, string>> callbackData,
+        PagedListCallbackDto listDto)
+    {
+        var totalPages = (callbackData.Count - 1) / PageSize + 1;
+
+        // Создаем список строк для клавиатуры
+        var keyboardRows = new List<InlineKeyboardButton[]>();
+        // Создаем список для кнопок пагинации
+        var paginationButtons = new List<InlineKeyboardButton>();
+
+        var userListTasks = callbackData.GetBatchByNumber(PageSize, listDto.Page);
+
+        keyboardRows.AddRange(userListTasks
+            .Select(toDoItem => (InlineKeyboardButton[])
+            [
+                InlineKeyboardButton.WithCallbackData(toDoItem.Key,
+                    // new PagedListCallbackDto(listDto.Action, listDto.ToDoListId, page: listDto.Page).ToString())
+                    new ToDoItemCallbackDto("showtask", Guid.Parse(toDoItem.Value)).ToString())
+            ]));
+
+        if (listDto.Page > 0)
+            paginationButtons.Add(
+                InlineKeyboardButton.WithCallbackData("⬅️",
+                    new PagedListCallbackDto(listDto.Action, listDto.ToDoListId, listDto.Page - 1).ToString())
+            );
+        if (listDto.Page < totalPages - 1)
+            paginationButtons.Add(
+                InlineKeyboardButton.WithCallbackData("➡️",
+                    new PagedListCallbackDto(listDto.Action, listDto.ToDoListId, listDto.Page + 1).ToString())
+            );
+
+        // Если есть хотя бы одна кнопка пагинации, добавляем их в одну строку
+        if (paginationButtons.Count > 0)
+        {
+            keyboardRows.Add(paginationButtons.ToArray());
+        }
+
+        // Создаем клавиатуру
+        return new InlineKeyboardMarkup(keyboardRows);
     }
 }
