@@ -3,5 +3,4 @@ bin/
 .vs/
 .idea/
 *.user
-items/
-users/
+JSON/

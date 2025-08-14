@@ -227,6 +227,37 @@ public class FileToDoRepository : IToDoRepository
         return activeItems;
     }
 
+    public async Task<IReadOnlyList<ToDoItem>> GetByUserIdAndList(Guid userId, Guid? listId, CancellationToken ct)
+    {
+        var fullPath = Path.Combine(_path, userId.ToString());
+        //Создаем директорию, если не существует
+        Directory.CreateDirectory(fullPath);
+
+        // Получаем все JSON-файлы в директории
+        var jsonFiles = Directory.GetFiles(fullPath, "*.json");
+
+        var activeItems = new List<ToDoItem>();
+
+        foreach (var filePath in jsonFiles)
+        {
+            // Читаем JSON из файла
+            var json = await File.ReadAllTextAsync(filePath, ct);
+            // Десериализуем элемент
+            var item = JsonSerializer.Deserialize<ToDoItem>(json);
+
+            // Проверяем условия: пользовател, активный статус и список для задач
+            if (item != null &&
+                item.User.UserId == userId &&
+                item.List?.Id == listId &&
+                item.State == ToDoItem.ToDoItemState.Active)
+            {
+                activeItems.Add(item);
+            }
+        }
+
+        return activeItems;
+    }
+    
     public async Task<bool> ExistsByName(Guid userId, string name, CancellationToken ct)
     {
         var fullPath = Path.Combine(_path, userId.ToString());
@@ -325,6 +356,8 @@ public class FileToDoRepository : IToDoRepository
 
         return result;
     }
+
+
 
     private void RebuildIndex()
     {

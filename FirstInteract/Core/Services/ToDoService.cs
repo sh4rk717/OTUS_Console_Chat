@@ -19,9 +19,9 @@ public class ToDoService(IToDoRepository repository) : IToDoService
         return await repository.GetActiveByUserId(userId, ct);
     }
 
-    public async Task<ToDoItem> Add(ToDoUser user, string name, DateTime deadline, CancellationToken ct)
+    public async Task<ToDoItem> Add(ToDoUser user, string name, DateTime deadline, ToDoList? list, CancellationToken ct)
     {
-        var newTaskItem = new ToDoItem(name, user, deadline);
+        var newTaskItem = new ToDoItem(name, user, deadline, list);
         var newTask = Program.ValidateString(name);
 
         // проверка на кол-во задач
@@ -58,5 +58,11 @@ public class ToDoService(IToDoRepository repository) : IToDoService
     public async Task<IReadOnlyList<ToDoItem>> Find(ToDoUser user, string namePrefix, CancellationToken ct)
     {
         return await repository.Find(user.UserId, item => item.Name.StartsWith(namePrefix), ct);
+    }
+
+    public async Task<IReadOnlyList<ToDoItem>> GetByUserIdAndList(Guid userId, Guid? listId, CancellationToken ct)
+    {
+        return await repository.GetByUserIdAndList(userId, listId, ct);
+        //var b = a.
     }
 }

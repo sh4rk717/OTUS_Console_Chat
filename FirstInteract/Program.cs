@@ -20,12 +20,22 @@ internal static class Program
         Console.InputEncoding = Encoding.Default;
         Console.OutputEncoding = Encoding.Default;
         
-        IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..", "..", "..", "users"));
-        IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..", "..", "..", "items"));
+        IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..", "..", "..", "JSON", "users"));
+        IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..", "..", "..", "JSON", "items"));
+        IToDoListRepository toDoListFileRepository = new FileToDoListRepository(Path.Combine("..", "..", "..", "JSON", "lists"));
+        
         IUserService userService = new UserService(userFileRepository);
         IToDoService toDoService = new ToDoService(toDoFileRepository);
+        IToDoListService toDoListService = new ToDoListService(toDoListFileRepository);
         IToDoReportService toDoReportService = new ToDoReportService(toDoFileRepository);
-        IEnumerable<IScenario> scenarios = [new AddTaskScenario(userService, toDoService)];
+        
+        // сюда добавлять обрабатываемые сценарии
+        IEnumerable<IScenario> scenarios = 
+        [
+            new AddTaskScenario(userService, toDoService, toDoListService),
+            new AddListScenario(userService, toDoListService),
+            new DeleteListScenario(userService, toDoListService, toDoService)
+        ];
         IScenarioContextRepository contextRepository = new InMemoryScenarioContextRepository();
 
         //Linux env. var
@@ -40,14 +50,14 @@ internal static class Program
                 "Telegram bot token is not configured. Please set the Telegram_TOKEN environment variable.");
 
         var botClient = new TelegramBotClient(token);
-        var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios,
+        var handler = new UpdateHandler(botClient, userService, toDoService, toDoListService, toDoReportService, scenarios,
             contextRepository);
         try
         {
             using var cts = new CancellationTokenSource();
             var receiverOptions = new ReceiverOptions
             {
-                AllowedUpdates = [UpdateType.Message],
+                AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery],
                 DropPendingUpdates = true
             };
 
