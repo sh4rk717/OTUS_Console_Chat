@@ -12,7 +12,7 @@ public interface IScenarioContextRepository
     /// <param name="ct"></param>
     /// <returns></returns>
     Task<ScenarioContext?> GetContext(long userId, CancellationToken ct);
-    
+
     /// <summary>
     /// Задать контекст пользователя
     /// </summary>
@@ -21,7 +21,7 @@ public interface IScenarioContextRepository
     /// <param name="ct"></param>
     /// <returns></returns>
     Task? SetContext(long userId, ScenarioContext? context, CancellationToken ct);
-    
+
     /// <summary>
     /// Сбросить (очистить) контекст пользователя
     /// </summary>

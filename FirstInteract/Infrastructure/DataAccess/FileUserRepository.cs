@@ -21,7 +21,7 @@ public class FileUserRepository : IUserRepository
         Directory.CreateDirectory(_path);
     }
 
-    public async Task<ToDoUser?>? GetUser(Guid userId, CancellationToken ct)
+    public async Task<ToDoUser?> GetUser(Guid userId, CancellationToken ct)
     {
         var fullPath = Path.Combine(this._path, userId + ".json");
         if (!File.Exists(fullPath))
@@ -39,7 +39,7 @@ public class FileUserRepository : IUserRepository
     {
         // Получаем все файлы пользователей в директории
         var userFiles = Directory.GetFiles(_path, "*.json");
-    
+
         foreach (var filePath in userFiles)
         {
             try
@@ -48,7 +48,7 @@ public class FileUserRepository : IUserRepository
                 var json = await File.ReadAllTextAsync(filePath, ct);
                 // Десериализуем пользователя
                 var user = JsonSerializer.Deserialize<ToDoUser>(json);
-            
+
                 // Проверяем совпадение Telegram User ID
                 if (user != null && user.TelegramUserId == telegramUserId)
                 {
@@ -64,7 +64,7 @@ public class FileUserRepository : IUserRepository
                 // Пропускаем файлы с ошибками чтения
             }
         }
-    
+
         return null; // Пользователь не найден
     }
 
@@ -73,7 +73,7 @@ public class FileUserRepository : IUserRepository
         // Пользователь уже зарегистрирован
         if (await GetUserByTelegramUserId(user.TelegramUserId, ct) != null)
             return;
-        
+
         var fullPath = Path.Combine(this._path, user.UserId + ".json");
         //Создание файла
         File.Create(fullPath).Close();

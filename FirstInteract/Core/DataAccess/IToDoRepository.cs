@@ -5,7 +5,7 @@ namespace FirstInteract.Core.DataAccess;
 public interface IToDoRepository
 {
     Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct);
-    //Возвращает ToDoItem для UserId со статусом Active
+    //Возвращает список ToDoItem для UserId со статусом Active
     Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct);
     Task<ToDoItem?> Get(Guid id, CancellationToken ct);
     Task Add(ToDoItem item, CancellationToken ct);

@@ -10,7 +10,7 @@ public class ToDoListService(IToDoListRepository repository) : IToDoListService
     {
         var newList = new ToDoList(user, name);
         var newListName = Program.ValidateString(name);
-        
+
         // проверка на длину имени списка
         if (newListName.Length > 10)
             throw new TaskLengthLimitException(newListName.Length, 10);
@@ -18,7 +18,7 @@ public class ToDoListService(IToDoListRepository repository) : IToDoListService
         // проверка на дубликат списка по имени списка
         if (await repository.ExistsByName(user.UserId, name, ct))
             throw new DuplicateTaskException(newListName);
-        
+
         await repository.Add(newList, ct);
 
         return newList;

@@ -4,8 +4,10 @@ namespace FirstInteract.Core.Services;
 
 public interface IToDoService
 {
+    Task<ToDoItem?> Get(Guid toDoItemId, CancellationToken ct);
+
     Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct);
-    
+
     //Возвращает ToDoItem для UserId со статусом Active
     Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct);
     Task<ToDoItem> Add(ToDoUser user, string name, DateTime deadline, ToDoList? list, CancellationToken ct);

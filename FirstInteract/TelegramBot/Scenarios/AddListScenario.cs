@@ -1,9 +1,9 @@
 using FirstInteract.Core.Entities;
 using FirstInteract.Core.Services;
+using FirstInteract.Helpers;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
-using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FirstInteract.TelegramBot.Scenarios;
 
@@ -20,7 +20,7 @@ public class AddListScenario(IUserService userService, IToDoListService toDoList
         Message? message;
         long userId;
         string userName;
-        
+
         switch (update.Type)
         {
             case UpdateType.CallbackQuery:
@@ -52,8 +52,8 @@ public class AddListScenario(IUserService userService, IToDoListService toDoList
                 var user = await userService.GetUser(userId, ct) ??
                            await userService.RegisterUser(userId, userName, ct);
                 context.Data["ToDoUser"] = user;
-                var replyMarkup = new ReplyKeyboardMarkup(true).AddNewRow("/cancel");
-                await bot.SendMessage(chatId: message.Chat.Id, text: "Введите название списка:", replyMarkup: replyMarkup, cancellationToken: ct);
+                await bot.SendMessageWithCancelButton(message.Chat, text: "Введите название списка:",
+                    cancellationToken: ct);
                 context.CurrentStep = "Name";
                 return ScenarioResult.Transition;
             }
@@ -61,8 +61,8 @@ public class AddListScenario(IUserService userService, IToDoListService toDoList
             {
                 var listName = message.Text?.Trim();
                 await toDoListService.Add((ToDoUser)context.Data["ToDoUser"], listName!, ct);
-                var replyMarkup = new ReplyKeyboardMarkup(true).AddNewRow("/show").AddNewRow("/addtask", "/report");
-                await bot.SendMessage(chatId: message.Chat.Id, text: $"Список \"{listName}\" успешно добавлен", replyMarkup: replyMarkup, cancellationToken: ct);
+                await bot.SendMessageWithDefaultButtons(message.Chat, text: $"Список \"{listName}\" успешно добавлен",
+                    cancellationToken: ct);
                 context.CurrentStep = null; //для корректной работы клавиатуры
                 return ScenarioResult.Completed;
             }

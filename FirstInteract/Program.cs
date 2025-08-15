@@ -19,20 +19,22 @@ internal static class Program
     {
         Console.InputEncoding = Encoding.Default;
         Console.OutputEncoding = Encoding.Default;
-        
+
         IUserRepository userFileRepository = new FileUserRepository(Path.Combine("..", "..", "..", "JSON", "users"));
         IToDoRepository toDoFileRepository = new FileToDoRepository(Path.Combine("..", "..", "..", "JSON", "items"));
-        IToDoListRepository toDoListFileRepository = new FileToDoListRepository(Path.Combine("..", "..", "..", "JSON", "lists"));
-        
+        IToDoListRepository toDoListFileRepository =
+            new FileToDoListRepository(Path.Combine("..", "..", "..", "JSON", "lists"));
+
         IUserService userService = new UserService(userFileRepository);
         IToDoService toDoService = new ToDoService(toDoFileRepository);
         IToDoListService toDoListService = new ToDoListService(toDoListFileRepository);
         IToDoReportService toDoReportService = new ToDoReportService(toDoFileRepository);
-        
+
         // сюда добавлять обрабатываемые сценарии
-        IEnumerable<IScenario> scenarios = 
+        IEnumerable<IScenario> scenarios =
         [
             new AddTaskScenario(userService, toDoService, toDoListService),
+            new DeleteTaskScenario(userService, toDoService),
             new AddListScenario(userService, toDoListService),
             new DeleteListScenario(userService, toDoListService, toDoService)
         ];
@@ -40,17 +42,18 @@ internal static class Program
 
         //Linux env. var
         var token = Environment.GetEnvironmentVariable("Telegram_TOKEN");
-        
+
         if (string.IsNullOrEmpty(token))
             //Windows env. var
             token = Environment.GetEnvironmentVariable("Telegram_TOKEN", EnvironmentVariableTarget.User);
-        
+
         if (string.IsNullOrEmpty(token))
             throw new InvalidOperationException(
                 "Telegram bot token is not configured. Please set the Telegram_TOKEN environment variable.");
 
         var botClient = new TelegramBotClient(token);
-        var handler = new UpdateHandler(botClient, userService, toDoService, toDoListService, toDoReportService, scenarios,
+        var handler = new UpdateHandler(botClient, userService, toDoService, toDoListService, toDoReportService,
+            scenarios,
             contextRepository);
         try
         {

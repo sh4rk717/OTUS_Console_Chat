@@ -1,5 +1,6 @@
 using FirstInteract.Core.Entities;
 using FirstInteract.Core.Services;
+using FirstInteract.Helpers;
 using FirstInteract.TelegramBot.Dto;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -77,13 +78,11 @@ public class DeleteListScenario(IUserService userService, IToDoListService toDoL
                     context.CurrentStep = "Approve";
                     return ScenarioResult.Transition;
                 }
-                else
-                {
-                    await bot.SendMessage(chatId: message.Chat, text: "Нет пользовательских списков",
-                        cancellationToken: ct);
-                    context.CurrentStep = null;
-                    return ScenarioResult.Completed;
-                }
+
+                await bot.SendMessage(chatId: message.Chat, text: "Нет пользовательских списков",
+                    cancellationToken: ct);
+                context.CurrentStep = null;
+                return ScenarioResult.Completed;
             }
 
             case "Approve":
@@ -109,9 +108,6 @@ public class DeleteListScenario(IUserService userService, IToDoListService toDoL
 
             case "Delete":
             {
-                var replyMarkup = new ReplyKeyboardMarkup(true).AddNewRow("/show").AddNewRow("/addtask", "/report");
-
-                //var listName = message.Text?.Trim();
                 switch (update.CallbackQuery!.Data!)
                 {
                     case "yes":
@@ -126,14 +122,14 @@ public class DeleteListScenario(IUserService userService, IToDoListService toDoL
 
                         // Удаляем сам список
                         await toDoListService.Delete(listGuid, ct);
-                        await bot.SendMessage(chatId: message.Chat.Id, text: $"Список со всеми задачами удален",
-                            replyMarkup: replyMarkup, cancellationToken: ct);
+                        await bot.SendMessageWithDefaultButtons(message.Chat, text: $"Список со всеми задачами удален",
+                            cancellationToken: ct);
                         break;
-                    
+
                     case "no":
                     {
-                        await bot.SendMessage(chatId: message.Chat.Id, text: $"Удаление отменено",
-                            replyMarkup: replyMarkup, cancellationToken: ct);
+                        await bot.SendMessageWithDefaultButtons(message.Chat, text: $"Удаление отменено",
+                            cancellationToken: ct);
                         break;
                     }
                 }
@@ -141,6 +137,7 @@ public class DeleteListScenario(IUserService userService, IToDoListService toDoL
                 context.CurrentStep = null;
                 return ScenarioResult.Completed;
             }
+
             default:
                 return ScenarioResult.Completed;
         }

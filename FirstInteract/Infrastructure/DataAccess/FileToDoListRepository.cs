@@ -20,9 +20,9 @@ public class FileToDoListRepository : IToDoListRepository
         //создаем директорию если нет
         Directory.CreateDirectory(_path);
     }
-    
-    
-    public async Task<ToDoList?>? Get(Guid id, CancellationToken ct)
+
+
+    public async Task<ToDoList?> Get(Guid id, CancellationToken ct)
     {
         var fullPath = Path.Combine(this._path, id + ".json");
         if (!File.Exists(fullPath))
@@ -39,10 +39,10 @@ public class FileToDoListRepository : IToDoListRepository
     public async Task<IReadOnlyList<ToDoList>> GetByUserId(Guid userId, CancellationToken ct)
     {
         var toDoLists = new List<ToDoList>();
-        
+
         // Получаем все файлы списков (toDoList) в директории
         var toDoListFiles = Directory.GetFiles(_path, "*.json");
-    
+
         foreach (var filePath in toDoListFiles)
         {
             try
@@ -51,7 +51,7 @@ public class FileToDoListRepository : IToDoListRepository
                 var json = await File.ReadAllTextAsync(filePath, ct);
                 // Десериализуем отдельный список задач
                 var toDoList = JsonSerializer.Deserialize<ToDoList>(json);
-            
+
                 // Проверяем совпадение User ID
                 if (toDoList!.User.UserId == userId)
                 {
@@ -67,7 +67,7 @@ public class FileToDoListRepository : IToDoListRepository
                 // Пропускаем файлы с ошибками чтения
             }
         }
-    
+
         return toDoLists;
     }
 
@@ -95,7 +95,7 @@ public class FileToDoListRepository : IToDoListRepository
     {
         // Получаем все файлы списков (toDoList) в директории
         var toDoListFiles = Directory.GetFiles(_path, "*.json");
-    
+
         foreach (var filePath in toDoListFiles)
         {
             try
@@ -104,7 +104,7 @@ public class FileToDoListRepository : IToDoListRepository
                 var json = await File.ReadAllTextAsync(filePath, ct);
                 // Десериализуем отдельный список задач
                 var toDoList = JsonSerializer.Deserialize<ToDoList>(json);
-            
+
                 // Проверяем совпадение User ID и названия списка
                 if (toDoList!.User.UserId == userId && toDoList.Name == name)
                 {
@@ -120,7 +120,7 @@ public class FileToDoListRepository : IToDoListRepository
                 // Пропускаем файлы с ошибками чтения
             }
         }
-    
+
         return false;
     }
 }
